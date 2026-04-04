@@ -29,72 +29,14 @@ const S = {
 
 // ── INITIAL DATA ──────────────────────────────────────────────────────────────
 const INIT = {
-  expenses:[
-    {id:1,category:"Fixed",name:"Rent",amount:30000},
-    {id:2,category:"Fixed",name:"Misc. Expense",amount:30000},
-    {id:3,category:"Fixed",name:"Subscriptions",amount:4905.34},
-    {id:4,category:"Variable",name:"Certifications",amount:34820.88},
-    {id:5,category:"Variable",name:"Personal Expense",amount:3321.20},
-    {id:6,category:"Variable",name:"Leisure",amount:16616},
-    {id:7,category:"Variable",name:"Car Maintenance",amount:1180},
-  ],
-  certs:[
-    {id:1,name:"Shallow Water CA-EB",issued:"2022-11-08",expiry:"2026-11-07",validYears:4,costTTD:1451.25,costUSD:"",files:[]},
-    {id:2,name:"TBOSIET",issued:"2022-04-21",expiry:"2030-04-19",validYears:8,costTTD:4702.50,costUSD:"",files:[]},
-    {id:3,name:"Confined Space Entry",issued:"2023-11-09",expiry:"2026-11-08",validYears:3,costTTD:2041.88,costUSD:"",files:[]},
-    {id:4,name:"API 510 Vessel Inspector",issued:"2023-11-30",expiry:"2026-11-30",validYears:3,costTTD:7174,costUSD:1055,files:[]},
-    {id:5,name:"API 570 Piping Inspector",issued:"2024-07-31",expiry:"2027-07-31",validYears:3,costTTD:7174,costUSD:1055,files:[]},
-    {id:6,name:"OGUK",issued:"2025-08-04",expiry:"2027-08-03",validYears:2,costTTD:1400,costUSD:"",files:[]},
-    {id:7,name:"RA Level 3",issued:"2024-12-10",expiry:"2027-12-09",validYears:3,costTTD:15000,costUSD:2205.88,files:[]},
-    {id:8,name:"NACE Coating Inspector L2",issued:"2024-12-18",expiry:"2027-12-18",validYears:3,costTTD:3570,costUSD:525,files:[]},
-    {id:9,name:"Vibration Analysis Cat II",issued:"2023-04-28",expiry:"2028-04-28",validYears:5,costTTD:2720,costUSD:400,files:[]},
-  ],
-  personalDocs:[
-    {id:1,type:"RBC DC",issued:"",expiry:"2026-03-01",cost:"",files:[]},
-    {id:2,type:"Car Inspection",issued:"2024-07-01",expiry:"2026-07-01",cost:300,files:[]},
-    {id:3,type:"Car Insurance",issued:"2025-07-31",expiry:"2026-07-30",cost:2671.20,files:[]},
-    {id:4,type:"Scotia DC",issued:"",expiry:"2026-10-01",cost:"",files:[]},
-    {id:5,type:"RBC CC",issued:"",expiry:"2027-02-01",cost:"",files:[]},
-    {id:6,type:"Scotia CC",issued:"2023-10-01",expiry:"2027-10-01",cost:"",files:[]},
-    {id:7,type:"RBC US DC",issued:"",expiry:"2028-02-01",cost:"",files:[]},
-    {id:8,type:"National ID",issued:"2019-05-22",expiry:"2029-05-22",cost:"",files:[]},
-    {id:9,type:"Chase DC",issued:"",expiry:"2029-12-01",cost:"",files:[]},
-    {id:10,type:"Chase CC",issued:"",expiry:"2030-01-01",cost:"",files:[]},
-  ],
-  subscriptions:[
-    {id:1,service:"Office 365 - Family Plan",type:"Annual",amount:670,renews:"2026-11-02",members:"Stefan:Paid:2025-11-03, Lendell:Unpaid:, Gi:Paid:2025-11-03, Allan:Unpaid:, Ken:Paid:2025-11-05, Ari:Paid:2025-11-04"},
-    {id:2,service:"Spotify - Family Plan",type:"Monthly",amount:77.02,renews:"2026-11-02",members:""},
-  ],
-  vehicles:[{id:"CAR-001",label:"CAR-001",lastServicedDate:"2025-09-08",lastServicedMileage:137870}],
-  carLog:[
-    {id:1,vehicleId:"CAR-001",item:"Compressor Solenoid Valve",action:"Replaced",date:"2021-09-20",mileage:"",cost:1068.75,supplier:"RK Airconditioning LTD"},
-    {id:2,vehicleId:"CAR-001",item:"L & R Front Shocks",action:"Replaced",date:"2023-07-25",mileage:"",cost:790,supplier:"Bobby's"},
-    {id:3,vehicleId:"CAR-001",item:"L & R Front Shock Mounts",action:"Replaced",date:"2023-07-25",mileage:"",cost:760,supplier:"Motourist"},
-    {id:4,vehicleId:"CAR-001",item:"Thermostat",action:"Replaced",date:"2023-07-25",mileage:"",cost:200,supplier:"Motourist"},
-    {id:5,vehicleId:"CAR-001",item:"Injectors",action:"Serviced",date:"2023-11-14",mileage:"",cost:"",supplier:""},
-    {id:6,vehicleId:"CAR-001",item:"Battery",action:"Replaced",date:"2024-05-20",mileage:"",cost:940.43,supplier:"Massy"},
-    {id:7,vehicleId:"CAR-001",item:"Cradle Arms",action:"Replaced",date:"2025-01-24",mileage:"",cost:"",supplier:""},
-    {id:8,vehicleId:"CAR-001",item:"Tyres",action:"Replaced",date:"2025-01-27",mileage:"",cost:2672,supplier:"Brantec"},
-    {id:9,vehicleId:"CAR-001",item:"Front Caliper Pins w/ Rubbers",action:"Replaced",date:"2025-04-15",mileage:"",cost:"",supplier:"Massy"},
-    {id:10,vehicleId:"CAR-001",item:"Pair of Axle Seals",action:"Replaced",date:"2025-04-15",mileage:"",cost:"",supplier:"Massy"},
-    {id:11,vehicleId:"CAR-001",item:"Engine Oil + Filters + AC",action:"Serviced",date:"2025-09-08",mileage:137870,cost:"",supplier:"Various"},
-    {id:12,vehicleId:"CAR-001",item:"AC Filter",action:"Replaced",date:"2025-11-22",mileage:139709,cost:"",supplier:""},
-    {id:13,vehicleId:"CAR-001",item:"Battery",action:"Replaced",date:"2026-02-23",mileage:141767,cost:1180,supplier:""},
-  ],
-  leisure:[
-    {id:1,trip:"World Cup",status:"Booked",legs:[{id:1,flightType:"Round Trip",from:"Port of Spain",to:"New York",departDate:"2026-06-21",departTime:"08:00",arriveDate:"2026-06-21",arriveTime:"14:30",returnDate:"2026-07-05",returnTime:"15:30",returnArriveDate:"2026-07-05",returnArriveTime:"22:00",flightCost:4500,airline:"Caribbean Airlines",flightNo:"BW400",segments:[]}],accommodations:[{id:1,city:"New York",hotel:"Times Square Hotel",checkIn:"2026-06-21",checkOut:"2026-07-05",checkInTime:"15:00",cost:7616}],files:[]},
-    {id:2,trip:"Europe",status:"Planning",legs:[],accommodations:[],files:[]},
-  ],
-  investments:[
-    {id:1,ticker:"VOO",type:"ETF",value:15180},
-    {id:2,ticker:"SCHG",type:"ETF",value:8611.11},
-    {id:3,ticker:"SCHD",type:"ETF",value:6725.64},
-    {id:4,ticker:"AMD",type:"Stock",value:1025.04},
-    {id:5,ticker:"APPL",type:"Stock",value:775.65},
-    {id:6,ticker:"GOOG",type:"Stock",value:1049.28},
-    {id:7,ticker:"NVDA",type:"Stock",value:1812.18},
-    {id:8,ticker:"MSFT",type:"Stock",value:493.18},
-  ],
+  expenses:[],
+  certs:[],
+  personalDocs:[],
+  subscriptions:[],
+  vehicles:[],
+  carLog:[],
+  leisure:[],
+  investments:[],
 };
 
 // ── SHARED COMPONENTS ─────────────────────────────────────────────────────────
@@ -1213,8 +1155,25 @@ const PAGES={overview:Overview,expenses:Expenses,certs:Certifications,personal:P
 
 export default function App(){
   const [active,setActive] = useState("overview");
-  const [data,setData] = useState(INIT);
+  const [data,setData] = useState(()=>{
+    try {
+      const saved = localStorage.getItem("fintrax_data");
+      return saved ? JSON.parse(saved) : INIT;
+    } catch(e) {
+      return INIT;
+    }
+  });
   const [menuOpen,setMenuOpen] = useState(false);
+
+  // Save to localStorage whenever data changes
+  const setDataAndSave = (updater) => {
+    setData(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      try { localStorage.setItem("fintrax_data", JSON.stringify(next)); } catch(e) {}
+      return next;
+    });
+  };
+
   const Page = PAGES[active];
   return(
     <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",fontSize:14}}>
@@ -1260,7 +1219,7 @@ export default function App(){
       )}
       {/* PAGE CONTENT */}
       <div style={{maxWidth:700,margin:"0 auto",padding:"20px 14px 80px"}}>
-        <Page data={data} setData={setData}/>
+        <Page data={data} setData={setDataAndSave}/>
       </div>
       {/* BOTTOM NAV BAR (mobile) */}
       <div style={{position:"fixed",bottom:0,left:0,right:0,background:T.surface,borderTop:`1px solid ${T.border}`,display:"flex",zIndex:190,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
