@@ -19,11 +19,11 @@ const logYear = s => s && s!=="-" ? new Date(s).getFullYear() : null;
 
 // ── STYLES ────────────────────────────────────────────────────────────────────
 const S = {
-  card: { background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 16px", marginBottom:12 },
+  card: { background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 16px", marginBottom:12, width:"100%", boxSizing:"border-box" },
   label: { fontSize:10, letterSpacing:2, color:T.muted, textTransform:"uppercase", marginBottom:6, display:"block" },
-  input: { width:"100%", background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, color:T.text, padding:"10px 12px", fontSize:14, fontFamily:"inherit", boxSizing:"border-box" },
-  btn: (c=T.accent) => ({ padding:"10px 16px", borderRadius:8, border:`1px solid ${c}`, background:c+"20", color:c, cursor:"pointer", fontSize:13, fontFamily:"inherit", fontWeight:700 }),
-  badge: c => ({ display:"inline-block", padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:c+"20", color:c, border:`1px solid ${c}40` }),
+  input: { width:"100%", background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, color:T.text, padding:"10px 12px", fontSize:14, fontFamily:"inherit", boxSizing:"border-box", minWidth:0 },
+  btn: (c=T.accent) => ({ padding:"10px 16px", borderRadius:8, border:`1px solid ${c}`, background:c+"20", color:c, cursor:"pointer", fontSize:13, fontFamily:"inherit", fontWeight:700, whiteSpace:"nowrap" }),
+  badge: c => ({ display:"inline-block", padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:c+"20", color:c, border:`1px solid ${c}40`, whiteSpace:"nowrap" }),
   outlineBtn: (active, c=T.accent) => ({ background:"none", border:`1px solid ${active?c:T.border}`, borderRadius:6, color:active?c:T.muted, fontSize:12, fontFamily:"inherit", padding:"6px 14px", cursor:"pointer", fontWeight:600 }),
 };
 
@@ -77,7 +77,7 @@ function ConfirmDelete({label,onCancel,onConfirm}){
 }
 
 function Field({label,children}){return <div style={{marginBottom:14}}><label style={S.label}>{label}</label>{children}</div>;}
-function G2({children}){return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>{children}</div>;}
+function G2({children}){return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))",gap:10}}>{children}</div>;}
 function SaveCancel({onCancel,onSave}){
   return(
     <div style={{display:"flex",gap:10,marginTop:16}}>
@@ -190,7 +190,7 @@ function Overview({data}){
     <div>
       <div style={{fontSize:18,fontWeight:700,letterSpacing:2,marginBottom:2}}>OVERVIEW</div>
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:16}}>// FINANCE DASHBOARD · {CY}</div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,marginBottom:12}}>
         <StatCard label={`${CY} Expenses`} value={fmt(totalCYExp)} color={T.red}/>
         <StatCard label="Portfolio" value={fmt(totalInv)} color={T.green}/>
         <StatCard label="Subscriptions/yr" value={fmt(subTotal)} color={T.accent}/>
@@ -263,7 +263,7 @@ function Expenses({data,setData}){
       </div>
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// {CY} ANNUAL EXPENSE TRACKER</div>
       <SearchBar value={search} onChange={setSearch} placeholder="Search expenses..."/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(100px, 1fr))",gap:10,marginBottom:14}}>
         <StatCard label={`${CY} Total`} value={fmt(total)} color={T.red} onClick={()=>setCardFilter(f=>f==="All"?"All":"All")} active={cardFilter==="All"}/>
         <StatCard label="Fixed" value={fmt(fixedTotal)} color={T.purple} onClick={()=>setCardFilter(f=>f==="Fixed"?"All":"Fixed")} active={cardFilter==="Fixed"}/>
         <StatCard label="Variable" value={fmt(varTotal)} color={T.yellow} onClick={()=>setCardFilter(f=>f==="Variable"?"All":"Variable")} active={cardFilter==="Variable"}/>
@@ -336,7 +336,7 @@ function Certifications({data,setData}){
         <span style={{fontSize:11,color:T.muted}}>{yearFilter==="All"?`${data.certs.length} total`:`${shown.length} expiring ${yearFilter}`}</span>
       </div>
       {yearFilter==="All"?(
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(100px, 1fr))",gap:10,marginBottom:14}}>
           <StatCard label="Total" value={byYear.length} color={T.accent} onClick={()=>setCardFilter(f=>f==="TotalCerts"?"All":"TotalCerts")} active={cardFilter==="TotalCerts"}/>
           <StatCard label={`Exp. ${CY}`} value={expiringNow} color={T.yellow} onClick={()=>setCardFilter(f=>f==="ExpiringThisYear"?"All":"ExpiringThisYear")} active={cardFilter==="ExpiringThisYear"}/>
           <StatCard label="Cost TTD" value={fmt(totalCost)} color={T.red}/>
@@ -417,7 +417,7 @@ function PersonalDocs({data,setData}){
       </div>
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// CARDS, IDs & DOCUMENT TRACKER</div>
       <SearchBar value={search} onChange={setSearch} placeholder="Search documents..."/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(100px, 1fr))",gap:10,marginBottom:14}}>
         <StatCard label="Total" value={data.personalDocs.length} color={T.accent} onClick={()=>setQFilter("All")} active={qFilter==="All"}/>
         <StatCard label="Expired" value={expiredCount} color={T.red} onClick={()=>setQFilter(q=>q==="Expired"?"All":"Expired")} active={qFilter==="Expired"}/>
         <StatCard label={`Exp. ${CY}`} value={expiringCount} color={T.yellow} onClick={()=>setQFilter(q=>q==="ExpiringThisYear"?"All":"ExpiringThisYear")} active={qFilter==="ExpiringThisYear"}/>
@@ -484,7 +484,7 @@ function Subscriptions({data,setData}){
       </div>
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// RECURRING SUBSCRIPTION MANAGER</div>
       <SearchBar value={search} onChange={setSearch} placeholder="Search subscriptions..."/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(100px, 1fr))",gap:10,marginBottom:14}}>
         <StatCard label="Active" value={data.subscriptions.length} color={T.accent}/>
         <StatCard label="Annual" value={fmt(annual)} color={T.red}/>
         <StatCard label="Monthly" value={fmt(annual/12)} color={T.yellow}/>
@@ -657,7 +657,7 @@ function CarMaintenance({data,setData}){
           )}
         </div>
       )}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,marginBottom:14}}>
         <StatCard label="Total Spent" value={fmt(shownTotal)} color={T.red}/>
         <StatCard label="Log Entries" value={shown.length} color={T.accent}/>
       </div>
@@ -917,7 +917,7 @@ function TripDetail({trip,onBack,onSave}){
           {(autoStart||autoEnd)&&<span style={{fontSize:12,color:T.muted}}>{fmtDate(autoStart)||"?"} → {fmtDate(autoEnd)||"?"}</span>}
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(100px, 1fr))",gap:10,marginBottom:12}}>
         <StatCard label="Flights" value={fmt(totalF)} color={T.accent}/>
         <StatCard label="Stays" value={fmt(totalA)} color={T.purple}/>
         <StatCard label="Total" value={fmt(totalF+totalA)} color={T.green}/>
@@ -1017,7 +1017,7 @@ function Leisure({data,setData}){
       </div>
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// TRIPS & ACTIVITIES · Tap card for details</div>
       <SearchBar value={search} onChange={setSearch} placeholder="Search trips..."/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,marginBottom:14}}>
         <StatCard label={`${CY} Trips`} value={cyTrips.length} color={T.accent}/>
         <StatCard label={`${CY} Trip Cost`} value={fmt(total)} color={T.green}/>
       </div>
@@ -1088,7 +1088,7 @@ function Investments({data,setData}){
       </div>
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// PORTFOLIO TRACKER</div>
       <SearchBar value={search} onChange={setSearch} placeholder="Search ticker or type..."/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(100px, 1fr))",gap:10,marginBottom:14}}>
         <StatCard label="Total" value={fmt(total)} color={T.green} onClick={()=>setCardFilter(f=>f==="All"?"All":"All")} active={cardFilter==="All"}/>
         <StatCard label={`ETF ${etfPct}%`} value={fmt(etfTotal)} color={T.accent} onClick={()=>setCardFilter(f=>f==="ETF"?"All":"ETF")} active={cardFilter==="ETF"}/>
         <StatCard label={`Stock ${stockPct}%`} value={fmt(stockTotal)} color={T.purple} onClick={()=>setCardFilter(f=>f==="Stock"?"All":"Stock")} active={cardFilter==="Stock"}/>
@@ -1157,7 +1157,12 @@ import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = "https://cpsyxvygcmmjxthvbiqd.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_1ilCgCSAMw6tVGTtLemgsw_jOvcrwx8";
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: false },
+  global: {
+    headers: { apikey: SUPABASE_ANON_KEY }
+  }
+});
 
 export default function App(){
   const [active,setActive] = useState("overview");
@@ -1210,16 +1215,18 @@ export default function App(){
   );
 
   return(
-    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",fontSize:14}}>
+    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",fontSize:14,overflowX:"hidden",width:"100%"}}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
       <style>{`
-        *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-        input,select,button{font-family:'IBM Plex Mono','Courier New',monospace;}
+        *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;max-width:100%;}
+        html,body{overflow-x:hidden;width:100%;margin:0;padding:0;}
+        input,select,button{font-family:'IBM Plex Mono','Courier New',monospace;max-width:100%;}
         input:focus,select:focus{border-color:${T.accent}!important;outline:none;box-shadow:0 0 0 2px ${T.accent}20;}
         button:active{opacity:0.7;}
         ::-webkit-scrollbar{width:4px;height:4px;}
         ::-webkit-scrollbar-thumb{background:${T.border};border-radius:4px;}
         input[type="date"],input[type="time"]{color-scheme:dark;}
+        img{max-width:100%;height:auto;}
       `}</style>
       {/* TOP BAR */}
       <div style={{position:"sticky",top:0,zIndex:200,background:T.surface,borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 16px",height:52}}>
