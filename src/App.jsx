@@ -1,0 +1,1280 @@
+import React, { useState } from "react";
+
+// ── THEME ─────────────────────────────────────────────────────────────────────
+const T = {
+  bg:"#0a0e1a", surface:"#111827", card:"#1a2235", border:"#1e2d45",
+  accent:"#00d4ff", accentGlow:"rgba(0,212,255,0.12)", green:"#00e5a0",
+  red:"#ff4d6d", yellow:"#ffd166", purple:"#a78bfa", text:"#e2e8f0", muted:"#64748b",
+};
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const fmt = n => n == null || n === "" ? "—" : `$${Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+const nextId = arr => arr.length ? Math.max(...arr.map(x => x.id)) + 1 : 1;
+const CY = new Date().getFullYear();
+const fmtDate = str => { if(!str||str==="—") return "—"; const d=new Date(str); return isNaN(d)?str:d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}); };
+const timeLeft = exp => { if(!exp) return "—"; const diff=new Date(exp)-new Date(); if(diff<0) return "Expired"; const days=Math.floor(diff/86400000),y=Math.floor(days/365),m=Math.floor((days%365)/30),d=days%30; if(y>0) return `${y}y ${m}m ${d}d`; if(m>0) return `${m}m ${d}d`; return `${d}d`; };
+const urgencyColor = tl => (!tl||tl==="Expired") ? T.red : !tl.includes("y") ? T.yellow : T.green;
+const expiryYear = s => s ? new Date(s).getFullYear() : null;
+const logYear = s => s && s!=="-" ? new Date(s).getFullYear() : null;
+
+// ── STYLES ────────────────────────────────────────────────────────────────────
+const S = {
+  card: { background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 16px", marginBottom:12 },
+  label: { fontSize:10, letterSpacing:2, color:T.muted, textTransform:"uppercase", marginBottom:6, display:"block" },
+  input: { width:"100%", background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, color:T.text, padding:"10px 12px", fontSize:14, fontFamily:"inherit", boxSizing:"border-box" },
+  btn: (c=T.accent) => ({ padding:"10px 16px", borderRadius:8, border:`1px solid ${c}`, background:c+"20", color:c, cursor:"pointer", fontSize:13, fontFamily:"inherit", fontWeight:700 }),
+  badge: c => ({ display:"inline-block", padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:c+"20", color:c, border:`1px solid ${c}40` }),
+  outlineBtn: (active, c=T.accent) => ({ background:"none", border:`1px solid ${active?c:T.border}`, borderRadius:6, color:active?c:T.muted, fontSize:12, fontFamily:"inherit", padding:"6px 14px", cursor:"pointer", fontWeight:600 }),
+};
+
+// ── INITIAL DATA ──────────────────────────────────────────────────────────────
+const INIT = {
+  expenses:[
+    {id:1,category:"Fixed",name:"Rent",amount:30000},
+    {id:2,category:"Fixed",name:"Misc. Expense",amount:30000},
+    {id:3,category:"Fixed",name:"Subscriptions",amount:4905.34},
+    {id:4,category:"Variable",name:"Certifications",amount:34820.88},
+    {id:5,category:"Variable",name:"Personal Expense",amount:3321.20},
+    {id:6,category:"Variable",name:"Leisure",amount:16616},
+    {id:7,category:"Variable",name:"Car Maintenance",amount:1180},
+  ],
+  certs:[
+    {id:1,name:"Shallow Water CA-EB",issued:"2022-11-08",expiry:"2026-11-07",validYears:4,costTTD:1451.25,costUSD:"",files:[]},
+    {id:2,name:"TBOSIET",issued:"2022-04-21",expiry:"2030-04-19",validYears:8,costTTD:4702.50,costUSD:"",files:[]},
+    {id:3,name:"Confined Space Entry",issued:"2023-11-09",expiry:"2026-11-08",validYears:3,costTTD:2041.88,costUSD:"",files:[]},
+    {id:4,name:"API 510 Vessel Inspector",issued:"2023-11-30",expiry:"2026-11-30",validYears:3,costTTD:7174,costUSD:1055,files:[]},
+    {id:5,name:"API 570 Piping Inspector",issued:"2024-07-31",expiry:"2027-07-31",validYears:3,costTTD:7174,costUSD:1055,files:[]},
+    {id:6,name:"OGUK",issued:"2025-08-04",expiry:"2027-08-03",validYears:2,costTTD:1400,costUSD:"",files:[]},
+    {id:7,name:"RA Level 3",issued:"2024-12-10",expiry:"2027-12-09",validYears:3,costTTD:15000,costUSD:2205.88,files:[]},
+    {id:8,name:"NACE Coating Inspector L2",issued:"2024-12-18",expiry:"2027-12-18",validYears:3,costTTD:3570,costUSD:525,files:[]},
+    {id:9,name:"Vibration Analysis Cat II",issued:"2023-04-28",expiry:"2028-04-28",validYears:5,costTTD:2720,costUSD:400,files:[]},
+  ],
+  personalDocs:[
+    {id:1,type:"RBC DC",issued:"",expiry:"2026-03-01",cost:"",files:[]},
+    {id:2,type:"Car Inspection",issued:"2024-07-01",expiry:"2026-07-01",cost:300,files:[]},
+    {id:3,type:"Car Insurance",issued:"2025-07-31",expiry:"2026-07-30",cost:2671.20,files:[]},
+    {id:4,type:"Scotia DC",issued:"",expiry:"2026-10-01",cost:"",files:[]},
+    {id:5,type:"RBC CC",issued:"",expiry:"2027-02-01",cost:"",files:[]},
+    {id:6,type:"Scotia CC",issued:"2023-10-01",expiry:"2027-10-01",cost:"",files:[]},
+    {id:7,type:"RBC US DC",issued:"",expiry:"2028-02-01",cost:"",files:[]},
+    {id:8,type:"National ID",issued:"2019-05-22",expiry:"2029-05-22",cost:"",files:[]},
+    {id:9,type:"Chase DC",issued:"",expiry:"2029-12-01",cost:"",files:[]},
+    {id:10,type:"Chase CC",issued:"",expiry:"2030-01-01",cost:"",files:[]},
+  ],
+  subscriptions:[
+    {id:1,service:"Office 365 - Family Plan",type:"Annual",amount:670,renews:"2026-11-02",members:"Stefan:Paid:2025-11-03, Lendell:Unpaid:, Gi:Paid:2025-11-03, Allan:Unpaid:, Ken:Paid:2025-11-05, Ari:Paid:2025-11-04"},
+    {id:2,service:"Spotify - Family Plan",type:"Monthly",amount:77.02,renews:"2026-11-02",members:""},
+  ],
+  vehicles:[{id:"CAR-001",label:"CAR-001",lastServicedDate:"2025-09-08",lastServicedMileage:137870}],
+  carLog:[
+    {id:1,vehicleId:"CAR-001",item:"Compressor Solenoid Valve",action:"Replaced",date:"2021-09-20",mileage:"",cost:1068.75,supplier:"RK Airconditioning LTD"},
+    {id:2,vehicleId:"CAR-001",item:"L & R Front Shocks",action:"Replaced",date:"2023-07-25",mileage:"",cost:790,supplier:"Bobby's"},
+    {id:3,vehicleId:"CAR-001",item:"L & R Front Shock Mounts",action:"Replaced",date:"2023-07-25",mileage:"",cost:760,supplier:"Motourist"},
+    {id:4,vehicleId:"CAR-001",item:"Thermostat",action:"Replaced",date:"2023-07-25",mileage:"",cost:200,supplier:"Motourist"},
+    {id:5,vehicleId:"CAR-001",item:"Injectors",action:"Serviced",date:"2023-11-14",mileage:"",cost:"",supplier:""},
+    {id:6,vehicleId:"CAR-001",item:"Battery",action:"Replaced",date:"2024-05-20",mileage:"",cost:940.43,supplier:"Massy"},
+    {id:7,vehicleId:"CAR-001",item:"Cradle Arms",action:"Replaced",date:"2025-01-24",mileage:"",cost:"",supplier:""},
+    {id:8,vehicleId:"CAR-001",item:"Tyres",action:"Replaced",date:"2025-01-27",mileage:"",cost:2672,supplier:"Brantec"},
+    {id:9,vehicleId:"CAR-001",item:"Front Caliper Pins w/ Rubbers",action:"Replaced",date:"2025-04-15",mileage:"",cost:"",supplier:"Massy"},
+    {id:10,vehicleId:"CAR-001",item:"Pair of Axle Seals",action:"Replaced",date:"2025-04-15",mileage:"",cost:"",supplier:"Massy"},
+    {id:11,vehicleId:"CAR-001",item:"Engine Oil + Filters + AC",action:"Serviced",date:"2025-09-08",mileage:137870,cost:"",supplier:"Various"},
+    {id:12,vehicleId:"CAR-001",item:"AC Filter",action:"Replaced",date:"2025-11-22",mileage:139709,cost:"",supplier:""},
+    {id:13,vehicleId:"CAR-001",item:"Battery",action:"Replaced",date:"2026-02-23",mileage:141767,cost:1180,supplier:""},
+  ],
+  leisure:[
+    {id:1,trip:"World Cup",status:"Booked",legs:[{id:1,flightType:"Round Trip",from:"Port of Spain",to:"New York",departDate:"2026-06-21",departTime:"08:00",arriveDate:"2026-06-21",arriveTime:"14:30",returnDate:"2026-07-05",returnTime:"15:30",returnArriveDate:"2026-07-05",returnArriveTime:"22:00",flightCost:4500,airline:"Caribbean Airlines",flightNo:"BW400",segments:[]}],accommodations:[{id:1,city:"New York",hotel:"Times Square Hotel",checkIn:"2026-06-21",checkOut:"2026-07-05",checkInTime:"15:00",cost:7616}],files:[]},
+    {id:2,trip:"Europe",status:"Planning",legs:[],accommodations:[],files:[]},
+  ],
+  investments:[
+    {id:1,ticker:"VOO",type:"ETF",value:15180},
+    {id:2,ticker:"SCHG",type:"ETF",value:8611.11},
+    {id:3,ticker:"SCHD",type:"ETF",value:6725.64},
+    {id:4,ticker:"AMD",type:"Stock",value:1025.04},
+    {id:5,ticker:"APPL",type:"Stock",value:775.65},
+    {id:6,ticker:"GOOG",type:"Stock",value:1049.28},
+    {id:7,ticker:"NVDA",type:"Stock",value:1812.18},
+    {id:8,ticker:"MSFT",type:"Stock",value:493.18},
+  ],
+};
+
+// ── SHARED COMPONENTS ─────────────────────────────────────────────────────────
+function StatCard({label,value,color,onClick,active}){
+  return(
+    <div onClick={onClick} style={{...S.card,marginBottom:0,borderColor:color+(active?"99":"40"),boxShadow:`0 0 14px ${color}${active?"30":"10"}`,cursor:onClick?"pointer":"default"}}>
+      <div style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",marginBottom:4}}>{label}</div>
+      <div style={{fontSize:20,fontWeight:700,color,lineHeight:1.2}}>{value}</div>
+      {active&&<div style={{fontSize:9,color,letterSpacing:2,marginTop:4}}>● ACTIVE</div>}
+    </div>
+  );
+}
+
+function Modal({title,onClose,children}){
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:600,maxHeight:"92vh",overflowY:"auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div style={{fontWeight:700,fontSize:15,color:T.accent,letterSpacing:1}}>{title}</div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:22,lineHeight:1,padding:"0 4px"}}>✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDelete({label,onCancel,onConfirm}){
+  return(
+    <Modal title="Confirm Delete" onClose={onCancel}>
+      <div style={{fontSize:14,color:T.text,marginBottom:20,lineHeight:1.6}}>Delete <span style={{color:T.red,fontWeight:700}}>{label}</span>?<br/><span style={{color:T.muted,fontSize:12}}>This cannot be undone.</span></div>
+      <div style={{display:"flex",gap:10}}>
+        <button style={{...S.btn(T.muted),flex:1}} onClick={onCancel}>Cancel</button>
+        <button style={{...S.btn(T.red),flex:1}} onClick={onConfirm}>Delete</button>
+      </div>
+    </Modal>
+  );
+}
+
+function Field({label,children}){return <div style={{marginBottom:14}}><label style={S.label}>{label}</label>{children}</div>;}
+function G2({children}){return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>{children}</div>;}
+function SaveCancel({onCancel,onSave}){
+  return(
+    <div style={{display:"flex",gap:10,marginTop:16}}>
+      <button style={{...S.btn(T.muted),flex:1}} onClick={onCancel}>Cancel</button>
+      <button style={{...S.btn(T.green),flex:1}} onClick={onSave}>Save</button>
+    </div>
+  );
+}
+
+function ItemActions({label,onEdit,onDelete}){
+  const [open,setOpen] = useState(false);
+  const [conf,setConf] = useState(false);
+  return(
+    <div>
+      <button style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:14,padding:"4px 8px"}} onClick={()=>setOpen(o=>!o)}>{open?"▲":"▼"}</button>
+      {open&&(
+        <div style={{display:"flex",gap:8,marginTop:8,paddingTop:8,borderTop:`1px solid ${T.border}30`,justifyContent:"flex-end"}}>
+          <button style={{...S.btn(T.accent),padding:"6px 16px",fontSize:12}} onClick={()=>{setOpen(false);onEdit();}}>✏ Edit</button>
+          <button style={{...S.btn(T.red),padding:"6px 16px",fontSize:12}} onClick={()=>setConf(true)}>🗑 Delete</button>
+        </div>
+      )}
+      {conf&&<ConfirmDelete label={label} onCancel={()=>setConf(false)} onConfirm={()=>{setConf(false);setOpen(false);onDelete();}}/>}
+    </div>
+  );
+}
+
+function SearchBar({value,onChange,placeholder}){
+  return <input style={{...S.input,marginBottom:14}} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder||"Search..."}/>;
+}
+
+function ListToggle({collapsed,onToggle,count,label}){
+  return(
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+      <div style={{fontSize:11,letterSpacing:2,color:T.accent,textTransform:"uppercase",fontWeight:700}}>{label}</div>
+      <button onClick={onToggle} style={{...S.outlineBtn(false),padding:"5px 12px",fontSize:11}}>{collapsed?`▼ Show (${count})`:"▲ Hide"}</button>
+    </div>
+  );
+}
+
+function FilesSection({files,onUpload,onDownload,onRemove}){
+  const [open,setOpen] = useState(false);
+  const list = files||[];
+  return(
+    <div style={{borderTop:`1px solid ${T.border}30`,paddingTop:10,marginTop:4}}>
+      <button style={S.outlineBtn(open)} onClick={()=>setOpen(o=>!o)}>Attached Files ({list.length})</button>
+      {open&&(
+        <div style={{marginTop:10}}>
+          <label style={{...S.btn(T.purple),padding:"6px 14px",fontSize:12,cursor:"pointer",display:"inline-block",marginBottom:10}}>
+            + Upload<input type="file" multiple style={{display:"none"}} onChange={onUpload}/>
+          </label>
+          {list.length===0&&<div style={{fontSize:12,color:T.muted}}>No files yet.</div>}
+          {list.map((f,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:T.bg,borderRadius:8,padding:"8px 10px",marginBottom:6}}>
+              <div style={{minWidth:0,flex:1}}>
+                <div style={{color:T.text,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>
+                <div style={{color:T.muted,fontSize:10}}>{f.uploadedAt} · {(f.size/1024).toFixed(1)} KB</div>
+              </div>
+              <div style={{display:"flex",gap:6,marginLeft:8,flexShrink:0}}>
+                <button style={{...S.btn(T.green),padding:"4px 10px",fontSize:11}} onClick={()=>onDownload(f)}>⬇</button>
+                <button style={{...S.btn(T.red),padding:"4px 8px",fontSize:11}} onClick={()=>onRemove(f.name)}>✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function useFiles(key,setData){
+  const upload = (itemId,e) => {
+    Array.from(e.target.files).forEach(file=>{
+      const r=new FileReader();
+      r.onload=ev=>setData(d=>({...d,[key]:d[key].map(x=>x.id===itemId?{...x,files:[...(x.files||[]),{name:file.name,type:file.type,size:file.size,dataUrl:ev.target.result,uploadedAt:new Date().toLocaleDateString()}]}:x)}));
+      r.readAsDataURL(file);
+    });
+    e.target.value="";
+  };
+  const download = f=>{const a=document.createElement("a");a.href=f.dataUrl;a.download=f.name;a.click();};
+  const remove = (itemId,name)=>setData(d=>({...d,[key]:d[key].map(x=>x.id===itemId?{...x,files:(x.files||[]).filter(f=>f.name!==name)}:x)}));
+  return {upload,download,remove};
+}
+
+// ── OVERVIEW ──────────────────────────────────────────────────────────────────
+function Overview({data}){
+  const subTotal = data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?Number(sub.amount||0):Number(sub.amount||0)*12),0);
+  const certTotal = data.certs.filter(c=>expiryYear(c.expiry)===CY).reduce((s,c)=>s+Number(c.costTTD||0),0);
+  const carTotal = data.carLog.filter(r=>logYear(r.date)===CY).reduce((s,r)=>s+Number(r.cost||0),0);
+  const leisureTotal = data.leisure.reduce((s,r)=>{
+    const legs=(r.legs||[]).slice().sort((a,b)=>((a.flightType==="Multi-City"?a.segments?.[0]?.departDate:a.departDate)||"").localeCompare((b.flightType==="Multi-City"?b.segments?.[0]?.departDate:b.departDate)||""));
+    const fd=legs.length>0?(legs[0].flightType==="Multi-City"?legs[0].segments?.[0]?.departDate:legs[0].departDate):null;
+    if(fd&&logYear(fd)!==CY) return s;
+    const tF=(r.legs||[]).reduce((sf,l)=>sf+Number(l.flightCost||0),0);
+    const tA=(r.accommodations||[]).reduce((sa,a)=>sa+Number(a.cost||0),0);
+    return s+tF+tA;
+  },0);
+  const fixedExp = data.expenses.filter(e=>e.category==="Fixed"&&e.name!=="Subscriptions").reduce((s,e)=>s+Number(e.amount||0),0);
+  const personalExp = data.expenses.filter(e=>e.name==="Personal Expense").reduce((s,e)=>s+Number(e.amount||0),0);
+  const totalCYExp = fixedExp+subTotal+certTotal+carTotal+leisureTotal+personalExp;
+  const totalInv = data.investments.reduce((s,r)=>s+Number(r.value||0),0);
+  const alerts = [...data.certs.map(c=>({name:c.name,expiry:c.expiry})),...data.personalDocs.map(d=>({name:d.type,expiry:d.expiry}))].filter(d=>urgencyColor(timeLeft(d.expiry))!==T.green);
+  const liveExp = data.expenses.map(e=>{
+    if(e.name==="Subscriptions") return {...e,amount:subTotal};
+    if(e.name==="Certifications") return {...e,amount:certTotal};
+    if(e.name==="Car Maintenance") return {...e,amount:carTotal};
+    if(e.name==="Leisure") return {...e,amount:leisureTotal};
+    return e;
+  });
+  return(
+    <div>
+      <div style={{fontSize:18,fontWeight:700,letterSpacing:2,marginBottom:2}}>OVERVIEW</div>
+      <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:16}}>// FINANCE DASHBOARD · {CY}</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+        <StatCard label={`${CY} Expenses`} value={fmt(totalCYExp)} color={T.red}/>
+        <StatCard label="Portfolio" value={fmt(totalInv)} color={T.green}/>
+        <StatCard label="Subscriptions/yr" value={fmt(subTotal)} color={T.accent}/>
+        <StatCard label="Expiry Alerts" value={alerts.length} color={T.yellow}/>
+      </div>
+      {alerts.length>0&&(
+        <div style={S.card}>
+          <div style={{fontSize:11,letterSpacing:2,color:T.yellow,textTransform:"uppercase",marginBottom:10}}>⚠ Expiry Alerts</div>
+          {alerts.map((d,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${T.border}20`}}>
+              <span style={{fontSize:13,flex:1,paddingRight:8}}>{d.name}</span>
+              <span style={S.badge(urgencyColor(timeLeft(d.expiry)))}>{timeLeft(d.expiry)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={S.card}>
+        <div style={{fontSize:11,letterSpacing:2,color:T.accent,textTransform:"uppercase",marginBottom:12}}>{CY} Expense Breakdown</div>
+        {liveExp.map((e,i)=>{const pct=totalCYExp>0?(Number(e.amount)/totalCYExp)*100:0;return(
+          <div key={i} style={{marginBottom:12}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+              <span style={{fontSize:13}}>{e.name}</span>
+              <span style={{fontSize:13,color:T.accent,fontWeight:600}}>{fmt(e.amount)}</span>
+            </div>
+            <div style={{height:5,background:T.border,borderRadius:4}}>
+              <div style={{height:"100%",width:`${pct}%`,background:e.category==="Fixed"?T.purple:T.accent,borderRadius:4}}/>
+            </div>
+          </div>
+        );})}
+      </div>
+    </div>
+  );
+}
+
+// ── EXPENSES ──────────────────────────────────────────────────────────────────
+function Expenses({data,setData}){
+  const [modal,setModal] = useState(null);
+  const [form,setForm] = useState({});
+  const [search,setSearch] = useState("");
+  const [collapsed,setCollapsed] = useState(false);
+  const [cardFilter,setCardFilter] = useState("All");
+  const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
+  const subTotal = data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?Number(sub.amount||0):Number(sub.amount||0)*12),0);
+  const certTotal = data.certs.filter(c=>expiryYear(c.expiry)===CY).reduce((s,c)=>s+Number(c.costTTD||0),0);
+  const carTotal = data.carLog.filter(r=>logYear(r.date)===CY).reduce((s,r)=>s+Number(r.cost||0),0);
+  const leisureTotal = data.leisure.reduce((s,r)=>{
+    const legs=(r.legs||[]).slice().sort((a,b)=>((a.flightType==="Multi-City"?a.segments?.[0]?.departDate:a.departDate)||"").localeCompare((b.flightType==="Multi-City"?b.segments?.[0]?.departDate:b.departDate)||""));
+    const fd=legs.length>0?(legs[0].flightType==="Multi-City"?legs[0].segments?.[0]?.departDate:legs[0].departDate):null;
+    if(fd&&logYear(fd)!==CY) return s;
+    return s+(r.legs||[]).reduce((sf,l)=>sf+Number(l.flightCost||0),0)+(r.accommodations||[]).reduce((sa,a)=>sa+Number(a.cost||0),0);
+  },0);
+  const liveExpenses = data.expenses.map(e=>{
+    if(e.name==="Subscriptions") return {...e,amount:subTotal,live:true};
+    if(e.name==="Certifications") return {...e,amount:certTotal,live:true};
+    if(e.name==="Car Maintenance") return {...e,amount:carTotal,live:true};
+    if(e.name==="Leisure") return {...e,amount:leisureTotal,live:true};
+    return e;
+  });
+  const total = liveExpenses.reduce((s,e)=>s+Number(e.amount||0),0);
+  const fixedTotal = liveExpenses.filter(e=>e.category==="Fixed").reduce((s,e)=>s+Number(e.amount||0),0);
+  const varTotal = liveExpenses.filter(e=>e.category!=="Fixed").reduce((s,e)=>s+Number(e.amount||0),0);
+  const baseShown = liveExpenses.filter(e=>cardFilter==="Fixed"?e.category==="Fixed":cardFilter==="Variable"?e.category!=="Fixed":true);
+  const shown = baseShown.filter(e=>!search||e.name.toLowerCase().includes(search.toLowerCase()));
+  function save(){const entry={...form,amount:Number(form.amount||0)};setData(d=>({...d,expenses:modal==="add"?[...d.expenses,{...entry,id:nextId(d.expenses)}]:d.expenses.map(e=>e.id===form.id?entry:e)}));setModal(null);}
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+        <div style={{fontSize:18,fontWeight:700,letterSpacing:2}}>EXPENSES</div>
+        <button style={{...S.btn(T.green),padding:"8px 14px"}} onClick={()=>{setForm({category:"Fixed",name:"",amount:""});setModal("add");}}>+ Add</button>
+      </div>
+      <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// {CY} ANNUAL EXPENSE TRACKER</div>
+      <SearchBar value={search} onChange={setSearch} placeholder="Search expenses..."/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
+        <StatCard label={`${CY} Total`} value={fmt(total)} color={T.red} onClick={()=>setCardFilter(f=>f==="All"?"All":"All")} active={cardFilter==="All"}/>
+        <StatCard label="Fixed" value={fmt(fixedTotal)} color={T.purple} onClick={()=>setCardFilter(f=>f==="Fixed"?"All":"Fixed")} active={cardFilter==="Fixed"}/>
+        <StatCard label="Variable" value={fmt(varTotal)} color={T.yellow} onClick={()=>setCardFilter(f=>f==="Variable"?"All":"Variable")} active={cardFilter==="Variable"}/>
+      </div>
+      <ListToggle collapsed={collapsed} onToggle={()=>setCollapsed(c=>!c)} count={shown.length} label="Expenses"/>
+      {!collapsed&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {shown.map(e=>(
+            <div key={e.id} style={S.card}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:600,fontSize:14,marginBottom:4}}>{e.name}</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                    <span style={S.badge(e.category==="Fixed"?T.purple:T.yellow)}>{e.category}</span>
+                    {e.live&&<span style={{fontSize:10,color:T.accent}}>⟳ auto</span>}
+                  </div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,marginLeft:8}}>
+                  <div style={{fontSize:17,fontWeight:700,color:T.accent}}>{fmt(e.amount)}</div>
+                  <div style={{fontSize:10,color:T.muted}}>{total>0?(Number(e.amount)/total*100).toFixed(1)+"%":""}</div>
+                  {!e.live&&<ItemActions label={e.name} onEdit={()=>{setForm({...e});setModal("edit");}} onDelete={()=>setData(d=>({...d,expenses:d.expenses.filter(x=>x.id!==e.id)}))}/>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal&&(
+        <Modal title={modal==="add"?"Add Expense":"Edit Expense"} onClose={()=>setModal(null)}>
+          <Field label="Category"><select style={S.input} value={form.category} onChange={e=>upd("category",e.target.value)}><option>Fixed</option><option>Variable</option></select></Field>
+          <Field label="Name"><input style={S.input} value={form.name||""} onChange={e=>upd("name",e.target.value)} placeholder="e.g. Rent"/></Field>
+          <Field label="Amount (TTD)"><input style={S.input} type="number" value={form.amount||""} onChange={e=>upd("amount",e.target.value)} placeholder="0.00"/></Field>
+          <SaveCancel onCancel={()=>setModal(null)} onSave={save}/>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ── CERTIFICATIONS ────────────────────────────────────────────────────────────
+function Certifications({data,setData}){
+  const [modal,setModal] = useState(null);
+  const [form,setForm] = useState({});
+  const [yearFilter,setYearFilter] = useState(String(CY));
+  const [search,setSearch] = useState("");
+  const [collapsed,setCollapsed] = useState(false);
+  const [cardFilter,setCardFilter] = useState("All");
+  const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
+  const {upload,download,remove} = useFiles("certs",setData);
+  const allYears = [...new Set(data.certs.map(c=>expiryYear(c.expiry)).filter(Boolean))].sort();
+  const byYear = yearFilter==="All"?data.certs:data.certs.filter(c=>expiryYear(c.expiry)===Number(yearFilter));
+  const expiringNow = data.certs.filter(c=>expiryYear(c.expiry)===CY).length;
+  let shown = yearFilter==="All"&&cardFilter==="ExpiringThisYear"?byYear.filter(c=>expiryYear(c.expiry)===CY):byYear;
+  shown = shown.filter(c=>!search||c.name.toLowerCase().includes(search.toLowerCase()));
+  const totalCost = shown.reduce((s,c)=>s+Number(c.costTTD||0),0);
+  function save(){const entry={...form,files:form.files||[]};setData(d=>({...d,certs:modal==="add"?[...d.certs,{...entry,id:nextId(d.certs)}]:d.certs.map(c=>c.id===form.id?entry:c)}));setModal(null);}
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+        <div style={{fontSize:18,fontWeight:700,letterSpacing:2}}>CERTIFICATIONS</div>
+        <button style={{...S.btn(T.green),padding:"8px 14px"}} onClick={()=>{setForm({name:"",issued:"",expiry:"",validYears:"",costTTD:"",costUSD:"",files:[]});setModal("add");}}>+ Add</button>
+      </div>
+      <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// PROFESSIONAL CERTIFICATIONS</div>
+      <SearchBar value={search} onChange={setSearch} placeholder="Search certifications..."/>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+        <span style={{fontSize:11,color:T.muted}}>Year:</span>
+        <select style={{...S.input,width:"auto",minWidth:100}} value={yearFilter} onChange={e=>{setYearFilter(e.target.value);setCardFilter("All");}}>
+          {["All",...allYears.map(String)].map(y=><option key={y}>{y}</option>)}
+        </select>
+        <span style={{fontSize:11,color:T.muted}}>{yearFilter==="All"?`${data.certs.length} total`:`${shown.length} expiring ${yearFilter}`}</span>
+      </div>
+      {yearFilter==="All"?(
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
+          <StatCard label="Total" value={byYear.length} color={T.accent} onClick={()=>setCardFilter(f=>f==="TotalCerts"?"All":"TotalCerts")} active={cardFilter==="TotalCerts"}/>
+          <StatCard label={`Exp. ${CY}`} value={expiringNow} color={T.yellow} onClick={()=>setCardFilter(f=>f==="ExpiringThisYear"?"All":"ExpiringThisYear")} active={cardFilter==="ExpiringThisYear"}/>
+          <StatCard label="Cost TTD" value={fmt(totalCost)} color={T.red}/>
+        </div>
+      ):(
+        <div style={{marginBottom:14}}><StatCard label={`Cost (TTD) · ${yearFilter}`} value={fmt(totalCost)} color={T.red}/></div>
+      )}
+      <ListToggle collapsed={collapsed} onToggle={()=>setCollapsed(c=>!c)} count={shown.length} label="Certifications"/>
+      {!collapsed&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {shown.length===0&&<div style={{...S.card,textAlign:"center",color:T.muted}}>No certifications match.</div>}
+          {shown.map(c=>{const tl=timeLeft(c.expiry),uc=urgencyColor(tl);return(
+            <div key={c.id} style={{...S.card,borderColor:uc+"40"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:8}}>
+                <div style={{fontWeight:700,fontSize:14,color:T.text,flex:1}}>{c.name}</div>
+                <span style={{...S.badge(uc),flexShrink:0}}>{tl}</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:T.muted,marginBottom:8}}>
+                <span>Issued: <span style={{color:T.text}}>{fmtDate(c.issued)}</span></span>
+                <span>Expires: <span style={{color:T.text}}>{fmtDate(c.expiry)}</span></span>
+              </div>
+              {(c.costTTD||c.costUSD)&&(
+                <div style={{display:"flex",gap:14,marginBottom:10,flexWrap:"wrap"}}>
+                  {c.costTTD&&<span style={{fontSize:12,color:T.accent}}>TTD: {fmt(c.costTTD)}</span>}
+                  {c.costUSD&&<span style={{fontSize:12,color:T.purple}}>USD: ${c.costUSD}</span>}
+                </div>
+              )}
+              <FilesSection files={c.files} onUpload={e=>upload(c.id,e)} onDownload={download} onRemove={name=>remove(c.id,name)}/>
+              <div style={{display:"flex",justifyContent:"flex-end",marginTop:4}}>
+                <ItemActions label={c.name} onEdit={()=>{setForm({...c,files:c.files||[]});setModal("edit");}} onDelete={()=>setData(d=>({...d,certs:d.certs.filter(x=>x.id!==c.id)}))}/>
+              </div>
+            </div>
+          );})}
+        </div>
+      )}
+      {modal&&(
+        <Modal title={modal==="add"?"Add Cert":"Edit Cert"} onClose={()=>setModal(null)}>
+          <Field label="Name"><input style={S.input} value={form.name||""} onChange={e=>upd("name",e.target.value)}/></Field>
+          <G2>
+            <Field label="Issued"><input style={S.input} type="date" value={form.issued||""} onChange={e=>upd("issued",e.target.value)}/></Field>
+            <Field label="Expiry"><input style={S.input} type="date" value={form.expiry||""} onChange={e=>upd("expiry",e.target.value)}/></Field>
+          </G2>
+          <Field label="Valid (years)"><input style={S.input} type="number" value={form.validYears||""} onChange={e=>upd("validYears",e.target.value)}/></Field>
+          <G2>
+            <Field label="Cost TTD"><input style={S.input} type="number" value={form.costTTD||""} onChange={e=>upd("costTTD",e.target.value)}/></Field>
+            <Field label="Cost USD"><input style={S.input} type="number" value={form.costUSD||""} onChange={e=>upd("costUSD",e.target.value)}/></Field>
+          </G2>
+          <SaveCancel onCancel={()=>setModal(null)} onSave={save}/>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ── PERSONAL DOCS ─────────────────────────────────────────────────────────────
+function PersonalDocs({data,setData}){
+  const [modal,setModal] = useState(null);
+  const [form,setForm] = useState({});
+  const [search,setSearch] = useState("");
+  const [collapsed,setCollapsed] = useState(false);
+  const [qFilter,setQFilter] = useState("All");
+  const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
+  const {upload,download,remove} = useFiles("personalDocs",setData);
+  const expiredCount = data.personalDocs.filter(d=>timeLeft(d.expiry)==="Expired").length;
+  const expiringCount = data.personalDocs.filter(d=>expiryYear(d.expiry)===CY&&timeLeft(d.expiry)!=="Expired").length;
+  const shown = data.personalDocs.filter(d=>{
+    if(search&&!d.type.toLowerCase().includes(search.toLowerCase())) return false;
+    if(qFilter==="Expired") return timeLeft(d.expiry)==="Expired";
+    if(qFilter==="ExpiringThisYear") return expiryYear(d.expiry)===CY&&timeLeft(d.expiry)!=="Expired";
+    return true;
+  });
+  function save(){const entry={...form,files:form.files||[]};setData(d=>({...d,personalDocs:modal==="add"?[...d.personalDocs,{...entry,id:nextId(d.personalDocs)}]:d.personalDocs.map(x=>x.id===form.id?entry:x)}));setModal(null);}
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+        <div style={{fontSize:18,fontWeight:700,letterSpacing:2}}>PERSONAL DOCS</div>
+        <button style={{...S.btn(T.green),padding:"8px 14px"}} onClick={()=>{setForm({type:"",issued:"",expiry:"",cost:"",files:[]});setModal("add");}}>+ Add</button>
+      </div>
+      <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// CARDS, IDs & DOCUMENT TRACKER</div>
+      <SearchBar value={search} onChange={setSearch} placeholder="Search documents..."/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
+        <StatCard label="Total" value={data.personalDocs.length} color={T.accent} onClick={()=>setQFilter("All")} active={qFilter==="All"}/>
+        <StatCard label="Expired" value={expiredCount} color={T.red} onClick={()=>setQFilter(q=>q==="Expired"?"All":"Expired")} active={qFilter==="Expired"}/>
+        <StatCard label={`Exp. ${CY}`} value={expiringCount} color={T.yellow} onClick={()=>setQFilter(q=>q==="ExpiringThisYear"?"All":"ExpiringThisYear")} active={qFilter==="ExpiringThisYear"}/>
+      </div>
+      <ListToggle collapsed={collapsed} onToggle={()=>setCollapsed(c=>!c)} count={shown.length} label="Documents"/>
+      {!collapsed&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {shown.length===0&&<div style={{...S.card,textAlign:"center",color:T.muted}}>No documents match.</div>}
+          {shown.map(d=>{const tl=timeLeft(d.expiry),uc=urgencyColor(tl);return(
+            <div key={d.id} style={{...S.card,borderColor:uc+"40"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:8}}>
+                <div style={{fontWeight:700,fontSize:14,flex:1}}>{d.type}</div>
+                <span style={{...S.badge(uc),flexShrink:0}}>{tl}</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:T.muted,marginBottom:8}}>
+                <span>Issued: <span style={{color:T.text}}>{fmtDate(d.issued)}</span></span>
+                <span>Expires: <span style={{color:T.text}}>{fmtDate(d.expiry)}</span></span>
+              </div>
+              {d.cost&&<div style={{fontSize:12,color:T.accent,marginBottom:10}}>Cost: {fmt(d.cost)}</div>}
+              <FilesSection files={d.files} onUpload={e=>upload(d.id,e)} onDownload={download} onRemove={name=>remove(d.id,name)}/>
+              <div style={{display:"flex",justifyContent:"flex-end",marginTop:4}}>
+                <ItemActions label={d.type} onEdit={()=>{setForm({...d,files:d.files||[]});setModal("edit");}} onDelete={()=>setData(d2=>({...d2,personalDocs:d2.personalDocs.filter(x=>x.id!==d.id)}))}/>
+              </div>
+            </div>
+          );})}
+        </div>
+      )}
+      {modal&&(
+        <Modal title={modal==="add"?"Add Document":"Edit Document"} onClose={()=>setModal(null)}>
+          <Field label="Document Type"><input style={S.input} value={form.type||""} onChange={e=>upd("type",e.target.value)} placeholder="e.g. Passport"/></Field>
+          <G2>
+            <Field label="Issue Date"><input style={S.input} type="date" value={form.issued||""} onChange={e=>upd("issued",e.target.value)}/></Field>
+            <Field label="Expiry Date"><input style={S.input} type="date" value={form.expiry||""} onChange={e=>upd("expiry",e.target.value)}/></Field>
+          </G2>
+          <Field label="Cost"><input style={S.input} type="number" value={form.cost||""} onChange={e=>upd("cost",e.target.value)} placeholder="0.00"/></Field>
+          <SaveCancel onCancel={()=>setModal(null)} onSave={save}/>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ── SUBSCRIPTIONS ─────────────────────────────────────────────────────────────
+function Subscriptions({data,setData}){
+  const [modal,setModal] = useState(null);
+  const [form,setForm] = useState({});
+  const [search,setSearch] = useState("");
+  const [collapsed,setCollapsed] = useState(false);
+  const [mOpen,setMOpen] = useState({});
+  const [editM,setEditM] = useState({});
+  const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
+  const annual = data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?Number(sub.amount||0):Number(sub.amount||0)*12),0);
+  const shown = data.subscriptions.filter(s=>!search||s.service.toLowerCase().includes(search.toLowerCase()));
+  const parseM = str=>{if(!str)return[];return str.split(",").map(m=>{const p=m.trim().split(":");return{name:p[0]?.trim()||"",paid:(p[1]?.trim()||"").toLowerCase()==="paid",date:p[2]?.trim()||""};});};
+  const serM = arr=>arr.map(m=>`${m.name}:${m.paid?"Paid":"Unpaid"}:${m.date}`).join(", ");
+  const togglePaid = (sid,i)=>setData(d=>({...d,subscriptions:d.subscriptions.map(sub=>{if(sub.id!==sid)return sub;const ms=parseM(sub.members);ms[i]={...ms[i],paid:!ms[i].paid,date:!ms[i].paid?new Date().toISOString().slice(0,10):ms[i].date};return{...sub,members:serM(ms)};})}));
+  const updMF = (sid,i,field,val)=>setData(d=>({...d,subscriptions:d.subscriptions.map(sub=>{if(sub.id!==sid)return sub;const ms=parseM(sub.members);ms[i]={...ms[i],[field]:val};return{...sub,members:serM(ms)};})}));
+  function save(){setData(d=>({...d,subscriptions:modal==="add"?[...d.subscriptions,{...form,id:nextId(d.subscriptions)}]:d.subscriptions.map(s=>s.id===form.id?{...form}:s)}));setModal(null);}
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+        <div style={{fontSize:18,fontWeight:700,letterSpacing:2}}>SUBSCRIPTIONS</div>
+        <button style={{...S.btn(T.green),padding:"8px 14px"}} onClick={()=>{setForm({service:"",type:"Monthly",amount:"",renews:"",members:""});setModal("add");}}>+ Add</button>
+      </div>
+      <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// RECURRING SUBSCRIPTION MANAGER</div>
+      <SearchBar value={search} onChange={setSearch} placeholder="Search subscriptions..."/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
+        <StatCard label="Active" value={data.subscriptions.length} color={T.accent}/>
+        <StatCard label="Annual" value={fmt(annual)} color={T.red}/>
+        <StatCard label="Monthly" value={fmt(annual/12)} color={T.yellow}/>
+      </div>
+      <ListToggle collapsed={collapsed} onToggle={()=>setCollapsed(c=>!c)} count={shown.length} label="Subscriptions"/>
+      {!collapsed&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {shown.map(sub=>{
+            const tl=timeLeft(sub.renews);
+            const members=parseM(sub.members);
+            const split=members.length>0?Number(sub.amount||0)/members.length:0;
+            const isOpen=!!mOpen[sub.id];
+            return(
+              <div key={sub.id} style={{...S.card,borderColor:T.accent+"30"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}}>
+                  <div style={{fontWeight:700,fontSize:14,flex:1}}>{sub.service}</div>
+                  <span style={{...S.badge(urgencyColor(tl)),flexShrink:0}}>{tl}</span>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <span style={S.badge(T.purple)}>{sub.type}</span>
+                  {sub.renews&&<span style={{fontSize:12}}><span style={{color:T.muted}}>Renews </span><span style={{color:T.text,fontWeight:600}}>{fmtDate(sub.renews)}</span></span>}
+                </div>
+                <div style={{fontSize:20,fontWeight:700,color:T.accent,marginBottom:2}}>{fmt(sub.amount)}</div>
+                <div style={{fontSize:11,color:T.muted,marginBottom:members.length>0?10:4}}>{sub.type==="Annual"?"per year":"per month"}</div>
+                {members.length>0&&(
+                  <div style={{borderTop:`1px solid ${T.border}30`,paddingTop:10}}>
+                    <button style={S.outlineBtn(isOpen)} onClick={()=>setMOpen(p=>({...p,[sub.id]:!p[sub.id]}))}>Members ({members.length})</button>
+                    {isOpen&&(
+                      <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:8}}>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr auto auto auto",gap:8,fontSize:10,color:T.muted,letterSpacing:1,padding:"0 4px",marginBottom:2}}>
+                          <span>MEMBER</span><span style={{textAlign:"center"}}>STATUS</span><span style={{textAlign:"right",minWidth:56}}>SPLIT</span><span/>
+                        </div>
+                        {members.map((m,i)=>{const ek=`${sub.id}_${i}`;const isEditing=!!editM[ek];return(
+                          <div key={i} style={{background:T.bg,borderRadius:8,padding:"10px 12px",border:`1px solid ${T.border}30`}}>
+                            {isEditing?(
+                              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                                  <input style={{...S.input,flex:1}} value={m.name} onChange={e=>updMF(sub.id,i,"name",e.target.value)} placeholder="Name"/>
+                                  <button style={{...S.btn(m.paid?T.green:T.red),padding:"8px 12px",fontSize:12,flexShrink:0}} onClick={()=>togglePaid(sub.id,i)}>{m.paid?"Paid":"Unpaid"}</button>
+                                </div>
+                                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                                  <span style={{fontSize:11,color:T.muted,whiteSpace:"nowrap"}}>Paid on:</span>
+                                  <input style={{...S.input,flex:1}} type="date" value={m.date||""} onChange={e=>updMF(sub.id,i,"date",e.target.value)}/>
+                                  <button style={{...S.btn(T.accent),padding:"8px 12px",fontSize:12,flexShrink:0}} onClick={()=>setEditM(p=>({...p,[ek]:false}))}>Done</button>
+                                </div>
+                              </div>
+                            ):(
+                              <div style={{display:"grid",gridTemplateColumns:"1fr auto auto auto",gap:8,alignItems:"center"}}>
+                                <div>
+                                  <div style={{fontWeight:600,fontSize:13,color:T.text}}>{m.name}</div>
+                                  {m.date&&<div style={{fontSize:10,color:T.muted}}>Paid: {fmtDate(m.date)}</div>}
+                                </div>
+                                <button style={{...S.badge(m.paid?T.green:T.red),cursor:"pointer",border:`1px solid ${m.paid?T.green:T.red}60`,background:"none"}} onClick={()=>togglePaid(sub.id,i)}>{m.paid?"Paid":"Unpaid"}</button>
+                                <span style={{color:T.accent,fontSize:12,textAlign:"right",minWidth:56}}>{fmt(split)}</span>
+                                <button style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:14,padding:"0 4px"}} onClick={()=>setEditM(p=>({...p,[ek]:true}))}>✏</button>
+                              </div>
+                            )}
+                          </div>
+                        );})}
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}>
+                  <ItemActions label={sub.service} onEdit={()=>{setForm({...sub});setModal("edit");}} onDelete={()=>setData(d=>({...d,subscriptions:d.subscriptions.filter(x=>x.id!==sub.id)}))}/>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {modal&&(
+        <Modal title={modal==="add"?"Add Subscription":"Edit Subscription"} onClose={()=>setModal(null)}>
+          <Field label="Service Name"><input style={S.input} value={form.service||""} onChange={e=>upd("service",e.target.value)} placeholder="e.g. Netflix"/></Field>
+          <G2>
+            <Field label="Type"><select style={S.input} value={form.type||"Monthly"} onChange={e=>upd("type",e.target.value)}><option>Monthly</option><option>Annual</option></select></Field>
+            <Field label="Amount"><input style={S.input} type="number" value={form.amount||""} onChange={e=>upd("amount",e.target.value)} placeholder="0.00"/></Field>
+          </G2>
+          <Field label="Renewal Date"><input style={S.input} type="date" value={form.renews||""} onChange={e=>upd("renews",e.target.value)}/></Field>
+          <Field label="Members (Name:Paid/Unpaid:Date, comma separated)">
+            <input style={S.input} value={form.members||""} onChange={e=>upd("members",e.target.value)} placeholder="Alice:Paid:2025-11-01, Bob:Unpaid:"/>
+          </Field>
+          <SaveCancel onCancel={()=>setModal(null)} onSave={save}/>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ── CAR MAINTENANCE ───────────────────────────────────────────────────────────
+function CarMaintenance({data,setData}){
+  const [modal,setModal] = useState(null);
+  const [form,setForm] = useState({});
+  const [search,setSearch] = useState("");
+  const [fAction,setFAction] = useState("All");
+  const [fVehicle,setFVehicle] = useState("All");
+  const [fYear,setFYear] = useState("All");
+  const [logCollapsed,setLogCollapsed] = useState(false);
+  const [vehiclesOpen,setVehiclesOpen] = useState(true);
+  const [expV,setExpV] = useState({});
+  const [confDelV,setConfDelV] = useState(null);
+  const [vModal,setVModal] = useState(false);
+  const [vForm,setVForm] = useState({});
+  const [activeVE,setActiveVE] = useState(null);
+  const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
+  const vehicles = data.vehicles||[];
+  const actions = ["All","Replaced","Serviced","Inspected","Pending"];
+  const logYears = ["All",...[...new Set(data.carLog.map(r=>logYear(r.date)).filter(Boolean))].sort((a,b)=>b-a).map(String)];
+  const aColor = a=>({Replaced:T.green,Serviced:T.accent,Inspected:T.purple,Pending:T.yellow}[a]||T.muted);
+  const shown = [...data.carLog].reverse().filter(r=>{
+    if(search&&!r.item.toLowerCase().includes(search.toLowerCase())&&!(r.supplier||"").toLowerCase().includes(search.toLowerCase())) return false;
+    if(fAction!=="All"&&r.action!==fAction) return false;
+    if(fVehicle!=="All"&&r.vehicleId!==fVehicle) return false;
+    if(fYear!=="All"&&String(logYear(r.date))!==fYear) return false;
+    return true;
+  });
+  const shownTotal = shown.reduce((s,r)=>s+Number(r.cost||0),0);
+  const anyFilter = search||fAction!=="All"||fVehicle!=="All"||fYear!=="All";
+  function save(){const entry={...form,vehicleId:form.vehicleId||(vehicles[0]?.id||"")};setData(d=>({...d,carLog:modal==="add"?[...d.carLog,{...entry,id:nextId(d.carLog)}]:d.carLog.map(r=>r.id===form.id?entry:r)}));setModal(null);}
+  function saveV(){let vf={...vForm};if(!vf.id)vf.id="CAR-"+Date.now();if(activeVE){const o=activeVE,n=vf.id;setData(d=>({...d,vehicles:d.vehicles.map(v=>v.id===o?vf:v),carLog:n!==o?d.carLog.map(r=>r.vehicleId===o?{...r,vehicleId:n}:r):d.carLog}));if(fVehicle===o)setFVehicle(n);}else{setData(d=>({...d,vehicles:[...(d.vehicles||[]),vf]}));}setVModal(false);setActiveVE(null);}
+  function delV(id){setData(d=>({...d,vehicles:d.vehicles.filter(v=>v.id!==id)}));if(fVehicle===id)setFVehicle("All");setConfDelV(null);}
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+        <div style={{fontSize:18,fontWeight:700,letterSpacing:2}}>CAR MAINTENANCE</div>
+        <div style={{display:"flex",gap:8}}>
+          <button style={{...S.btn(T.purple),padding:"8px 12px"}} onClick={()=>{setVForm({id:"",label:"",lastServicedDate:"",lastServicedMileage:""});setActiveVE(null);setVModal(true);}}>+ Vehicle</button>
+          <button style={{...S.btn(T.green),padding:"8px 12px"}} onClick={()=>{setForm({item:"",action:"Replaced",date:"",mileage:"",cost:"",supplier:"",vehicleId:vehicles[0]?.id||""});setModal("add");}}>+ Entry</button>
+        </div>
+      </div>
+      <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// VEHICLE MAINTENANCE TRACKER</div>
+      {vehicles.length>0&&(
+        <div style={{...S.card,padding:0,overflow:"hidden",marginBottom:14}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",cursor:"pointer",borderBottom:vehiclesOpen?`1px solid ${T.border}30`:"none"}} onClick={()=>setVehiclesOpen(o=>!o)}>
+            <div style={{fontSize:12,letterSpacing:2,color:T.purple,textTransform:"uppercase",fontWeight:700}}>Vehicles ({vehicles.length})</div>
+            <span style={{color:T.muted,fontSize:13}}>{vehiclesOpen?"▲":"▼"}</span>
+          </div>
+          {vehiclesOpen&&(
+            <div>
+              {vehicles.map((v,vi)=>{
+                const ie=!!expV[v.id];
+                return(
+                  <div key={v.id} style={{padding:"12px 16px",borderBottom:vi<vehicles.length-1?`1px solid ${T.border}20`:"none",background:fVehicle===v.id?T.purple+"10":"transparent",cursor:"pointer"}} onClick={()=>setFVehicle(fv=>fv===v.id?"All":v.id)}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                      <div style={{flex:1}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
+                          <span style={{fontWeight:700,color:T.purple,fontSize:14}}>🚗 {v.id}</span>
+                          {v.label&&v.label!==v.id&&<span style={{fontSize:12,color:T.muted}}>— {v.label}</span>}
+                          {fVehicle===v.id&&<span style={{...S.badge(T.purple),fontSize:9}}>ACTIVE</span>}
+                        </div>
+                        {v.lastServicedDate&&(
+                          <div style={{fontSize:12,color:T.muted,display:"flex",gap:12,flexWrap:"wrap"}}>
+                            <span>Last: <span style={{color:T.text}}>{fmtDate(v.lastServicedDate)}</span></span>
+                            {v.lastServicedMileage&&<span>Mileage: <span style={{color:T.accent}}>{Number(v.lastServicedMileage).toLocaleString()} km</span></span>}
+                          </div>
+                        )}
+                        {ie&&(
+                          <div style={{display:"flex",gap:8,marginTop:10}} onClick={e=>e.stopPropagation()}>
+                            <button style={{...S.btn(T.accent),padding:"6px 14px",fontSize:12}} onClick={e=>{e.stopPropagation();setVForm({...v});setActiveVE(v.id);setVModal(true);setExpV(p=>({...p,[v.id]:false}));}}>✏ Edit</button>
+                            <button style={{...S.btn(T.red),padding:"6px 14px",fontSize:12}} onClick={e=>{e.stopPropagation();setConfDelV(v.id);}}>🗑 Delete</button>
+                          </div>
+                        )}
+                      </div>
+                      <button style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:14,padding:"4px 8px",flexShrink:0}} onClick={e=>{e.stopPropagation();setExpV(p=>({...p,[v.id]:!p[v.id]}));}}>{ie?"▲":"▼"}</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+        <StatCard label="Total Spent" value={fmt(shownTotal)} color={T.red}/>
+        <StatCard label="Log Entries" value={shown.length} color={T.accent}/>
+      </div>
+      <SearchBar value={search} onChange={setSearch} placeholder="Search items or suppliers..."/>
+      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+        <select style={{...S.input,flex:"1 1 120px",minWidth:100}} value={fAction} onChange={e=>setFAction(e.target.value)}>{actions.map(a=><option key={a}>{a}</option>)}</select>
+        <select style={{...S.input,flex:"1 1 120px",minWidth:100}} value={fVehicle} onChange={e=>setFVehicle(e.target.value)}>{["All",...vehicles.map(v=>v.id)].map(v=><option key={v}>{v}</option>)}</select>
+        <select style={{...S.input,flex:"1 1 100px",minWidth:80}} value={fYear} onChange={e=>setFYear(e.target.value)}>{logYears.map(y=><option key={y}>{y}</option>)}</select>
+        {anyFilter&&<button style={{...S.btn(T.muted),padding:"8px 14px"}} onClick={()=>{setSearch("");setFAction("All");setFVehicle("All");setFYear("All");}}>✕ Clear</button>}
+      </div>
+      {anyFilter&&(
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+          {search&&<span style={S.badge(T.accent)}>"{search}"</span>}
+          {fAction!=="All"&&<span style={S.badge(aColor(fAction))}>{fAction}</span>}
+          {fVehicle!=="All"&&<span style={S.badge(T.purple)}>{fVehicle}</span>}
+          {fYear!=="All"&&<span style={S.badge(T.yellow)}>{fYear}</span>}
+          <span style={{fontSize:11,color:T.muted,alignSelf:"center"}}>{shown.length} result{shown.length!==1?"s":""}</span>
+        </div>
+      )}
+      <ListToggle collapsed={logCollapsed} onToggle={()=>setLogCollapsed(c=>!c)} count={shown.length} label="Maintenance Log"/>
+      {!logCollapsed&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {shown.length===0&&<div style={{...S.card,textAlign:"center",color:T.muted}}>No entries match.</div>}
+          {shown.map(r=>{
+            const vInfo=vehicles.find(v=>v.id===r.vehicleId);
+            const vLabel=vInfo?.label&&vInfo.label!==vInfo.id?vInfo.label:null;
+            return(
+              <div key={r.id} style={S.card}>
+                <div style={{display:"flex",justifyContent:"space-between",gap:12}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:14,marginBottom:6}}>{r.item}</div>
+                    <div style={{fontSize:12,display:"flex",flexDirection:"column",gap:3}}>
+                      <span style={{color:r.supplier?T.muted:T.border}}>📦 {r.supplier||"No supplier"}</span>
+                      <span style={{color:r.cost?T.accent:T.border}}>💰 {r.cost?fmt(r.cost):"No cost logged"}</span>
+                      {vLabel&&<span style={{color:T.purple,fontSize:11}}>🚗 {vLabel}</span>}
+                    </div>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
+                    <span style={S.badge(aColor(r.action))}>{r.action}</span>
+                    <div style={{fontSize:12,color:T.muted,textAlign:"right"}}>
+                      {r.date&&<div>{fmtDate(r.date)}</div>}
+                      {r.mileage&&<div style={{color:T.accent}}>{Number(r.mileage).toLocaleString()} km</div>}
+                    </div>
+                    <ItemActions label={r.item} onEdit={()=>{setForm({...r});setModal("edit");}} onDelete={()=>setData(d=>({...d,carLog:d.carLog.filter(x=>x.id!==r.id)}))}/>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {confDelV&&<ConfirmDelete label={confDelV} onCancel={()=>setConfDelV(null)} onConfirm={()=>delV(confDelV)}/>}
+      {modal&&(
+        <Modal title={modal==="add"?"Add Log Entry":"Edit Log Entry"} onClose={()=>setModal(null)}>
+          {vehicles.length>0&&<Field label="Vehicle"><select style={S.input} value={form.vehicleId||""} onChange={e=>upd("vehicleId",e.target.value)}>{vehicles.map(v=><option key={v.id} value={v.id}>{v.id}{v.label&&v.label!==v.id?` — ${v.label}`:""}</option>)}</select></Field>}
+          <Field label="Item / Service"><input style={S.input} value={form.item||""} onChange={e=>upd("item",e.target.value)} placeholder="e.g. Engine Oil"/></Field>
+          <G2>
+            <Field label="Action"><select style={S.input} value={form.action||"Replaced"} onChange={e=>upd("action",e.target.value)}><option>Replaced</option><option>Serviced</option><option>Inspected</option><option>Pending</option></select></Field>
+            <Field label="Date"><input style={S.input} type="date" value={form.date||""} onChange={e=>upd("date",e.target.value)}/></Field>
+          </G2>
+          <G2>
+            <Field label="Mileage (km)"><input style={S.input} type="number" value={form.mileage||""} onChange={e=>upd("mileage",e.target.value)} placeholder="141767"/></Field>
+            <Field label="Cost"><input style={S.input} type="number" value={form.cost||""} onChange={e=>upd("cost",e.target.value)} placeholder="0.00"/></Field>
+          </G2>
+          <Field label="Supplier"><input style={S.input} value={form.supplier||""} onChange={e=>upd("supplier",e.target.value)} placeholder="e.g. Massy"/></Field>
+          <SaveCancel onCancel={()=>setModal(null)} onSave={save}/>
+        </Modal>
+      )}
+      {vModal&&(
+        <Modal title={activeVE?"Edit Vehicle":"Add Vehicle"} onClose={()=>{setVModal(false);setActiveVE(null);}}>
+          <Field label="Vehicle ID"><input style={S.input} value={vForm.id||""} onChange={e=>setVForm(f=>({...f,id:e.target.value}))} placeholder="CAR-002"/></Field>
+          <Field label="Label / Nickname"><input style={S.input} value={vForm.label||""} onChange={e=>setVForm(f=>({...f,label:e.target.value}))} placeholder="e.g. Toyota Hilux"/></Field>
+          <G2>
+            <Field label="Last Serviced"><input style={S.input} type="date" value={vForm.lastServicedDate||""} onChange={e=>setVForm(f=>({...f,lastServicedDate:e.target.value}))}/></Field>
+            <Field label="Mileage (km)"><input style={S.input} type="number" value={vForm.lastServicedMileage||""} onChange={e=>setVForm(f=>({...f,lastServicedMileage:e.target.value}))}/></Field>
+          </G2>
+          <SaveCancel onCancel={()=>{setVModal(false);setActiveVE(null);}} onSave={saveV}/>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ── LEISURE — LegCard (top-level) ─────────────────────────────────────────────
+function LegCard({leg,onEdit,onDelete}){
+  const typeColors = {"One Way":T.yellow,"Round Trip":T.accent,"Multi-City":T.purple};
+  const tc = typeColors[leg.flightType]||T.muted;
+  const segs = leg.segments||[];
+  const routeText = leg.flightType==="Multi-City"
+    ? segs.map(s=>s.from).concat(segs.length>0?[segs[segs.length-1].to]:[]).join(" / ")
+    : leg.flightType==="Round Trip"
+      ? `${leg.from||"?"} / ${leg.to||"?"} / ${leg.from||"?"}`
+      : `${leg.from||"?"} / ${leg.to||"?"}`;
+  return(
+    <div style={{background:T.bg,borderRadius:10,padding:"12px",border:`1px solid ${T.border}30`,marginBottom:8}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:8}}>
+        <div style={{fontWeight:700,fontSize:13,color:T.text,flex:1,lineHeight:1.3}}>{routeText}</div>
+        <span style={{...S.badge(tc),fontSize:10,flexShrink:0}}>{leg.flightType}</span>
+      </div>
+      {(leg.airline||leg.flightNo)&&(
+        <div style={{fontSize:12,color:T.muted,marginBottom:8}}>
+          {leg.airline&&<span>✈ {leg.airline}</span>}
+          {leg.airline&&leg.flightNo&&<span style={{margin:"0 6px"}}>·</span>}
+          {leg.flightNo&&<span>#{leg.flightNo}</span>}
+        </div>
+      )}
+      <div style={{fontSize:12,color:T.muted,display:"flex",flexDirection:"column",gap:5,marginBottom:10}}>
+        {leg.flightType==="One Way"&&(
+          <div>
+            <div><span style={{color:T.accent,fontWeight:600}}>Depart: </span><span style={{color:T.text}}>{leg.from||"—"}</span>{leg.departDate&&<span> · {fmtDate(leg.departDate)}{leg.departTime&&` ${leg.departTime}`}</span>}</div>
+            <div><span style={{color:T.purple,fontWeight:600}}>Arrive: </span><span style={{color:T.text}}>{leg.to||"—"}</span>{leg.arriveDate&&<span> · {fmtDate(leg.arriveDate)}{leg.arriveTime&&` ${leg.arriveTime}`}</span>}</div>
+          </div>
+        )}
+        {leg.flightType==="Round Trip"&&(
+          <div>
+            <div style={{fontSize:10,color:T.accent,letterSpacing:1,marginBottom:4,fontWeight:700}}>OUTBOUND</div>
+            <div><span style={{color:T.accent,fontWeight:600}}>Depart: </span><span style={{color:T.text}}>{leg.from||"—"}</span>{leg.departDate&&<span> · {fmtDate(leg.departDate)}{leg.departTime&&` ${leg.departTime}`}</span>}</div>
+            <div><span style={{color:T.purple,fontWeight:600}}>Arrive: </span><span style={{color:T.text}}>{leg.to||"—"}</span>{leg.arriveDate&&<span> · {fmtDate(leg.arriveDate)}{leg.arriveTime&&` ${leg.arriveTime}`}</span>}</div>
+            {leg.returnDate&&(
+              <div style={{marginTop:6}}>
+                <div style={{fontSize:10,color:T.purple,letterSpacing:1,marginBottom:4,fontWeight:700}}>RETURN</div>
+                <div><span style={{color:T.accent,fontWeight:600}}>Depart: </span><span style={{color:T.text}}>{leg.to||"—"}</span><span> · {fmtDate(leg.returnDate)}{leg.returnTime&&` ${leg.returnTime}`}</span></div>
+                <div><span style={{color:T.purple,fontWeight:600}}>Arrive: </span><span style={{color:T.text}}>{leg.from||"—"}</span>{leg.returnArriveDate&&<span> · {fmtDate(leg.returnArriveDate)}{leg.returnArriveTime&&` ${leg.returnArriveTime}`}</span>}</div>
+              </div>
+            )}
+          </div>
+        )}
+        {leg.flightType==="Multi-City"&&segs.map((seg,i)=>(
+          <div key={seg.id} style={{paddingLeft:10,borderLeft:`2px solid ${T.purple}40`,marginBottom:4}}>
+            <div style={{fontSize:10,color:T.purple,fontWeight:700,marginBottom:2}}>SEG {i+1}</div>
+            <div><span style={{color:T.accent,fontWeight:600}}>Depart: </span><span style={{color:T.text}}>{seg.from||"—"}</span>{seg.departDate&&<span> · {fmtDate(seg.departDate)}{seg.departTime&&` ${seg.departTime}`}</span>}</div>
+            <div><span style={{color:T.purple,fontWeight:600}}>Arrive: </span><span style={{color:T.text}}>{seg.to||"—"}</span>{seg.arriveDate&&<span> · {fmtDate(seg.arriveDate)}{seg.arriveTime&&` ${seg.arriveTime}`}</span>}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:`1px solid ${T.border}20`,paddingTop:8}}>
+        <span style={{fontSize:14,fontWeight:700,color:leg.flightCost?T.green:T.muted}}>{leg.flightCost?fmt(leg.flightCost):"No cost"}</span>
+        <ItemActions label={leg.flightType+" flight"} onEdit={onEdit} onDelete={onDelete}/>
+      </div>
+    </div>
+  );
+}
+
+function FlightModal({initial,onSave,onClose}){
+  const blank = {flightType:"One Way",from:"",to:"",departDate:"",departTime:"",arriveDate:"",arriveTime:"",returnDate:"",returnTime:"",returnArriveDate:"",returnArriveTime:"",flightCost:"",airline:"",flightNo:"",segments:[]};
+  const [f,setF] = useState(initial?{...blank,...initial}:blank);
+  const upd = (k,v)=>setF(p=>({...p,[k]:v}));
+  const typeColors = {"One Way":T.yellow,"Round Trip":T.accent,"Multi-City":T.purple};
+  const addSeg = ()=>setF(p=>({...p,segments:[...(p.segments||[]),{id:Date.now(),from:"",to:"",departDate:"",departTime:"",arriveDate:"",arriveTime:""}]}));
+  const updSeg = (id,k,v)=>setF(p=>({...p,segments:p.segments.map(s=>s.id===id?{...s,[k]:v}:s)}));
+  const delSeg = id=>setF(p=>({...p,segments:p.segments.filter(s=>s.id!==id)}));
+  return(
+    <Modal title={initial?"Edit Flight":"Add Flight"} onClose={onClose}>
+      <div style={{marginBottom:16}}>
+        <div style={S.label}>Flight Type</div>
+        <div style={{display:"flex",gap:8}}>
+          {["One Way","Round Trip","Multi-City"].map(type=>(
+            <button key={type} onClick={()=>upd("flightType",type)} style={{flex:1,padding:"10px 4px",borderRadius:8,fontSize:12,fontFamily:"inherit",cursor:"pointer",fontWeight:700,border:`1px solid ${f.flightType===type?typeColors[type]:T.border}`,background:f.flightType===type?typeColors[type]+"20":"none",color:f.flightType===type?typeColors[type]:T.muted}}>
+              {type}
+            </button>
+          ))}
+        </div>
+      </div>
+      <G2>
+        <Field label="Airline"><input style={S.input} value={f.airline||""} onChange={e=>upd("airline",e.target.value)} placeholder="Caribbean Airlines"/></Field>
+        <Field label="Flight No."><input style={S.input} value={f.flightNo||""} onChange={e=>upd("flightNo",e.target.value)} placeholder="BW400"/></Field>
+      </G2>
+      <Field label="Total Flight Cost (TTD)"><input style={S.input} type="number" value={f.flightCost||""} onChange={e=>upd("flightCost",e.target.value)} placeholder="0.00"/></Field>
+      {f.flightType==="One Way"&&(
+        <div>
+          <G2><Field label="From"><input style={S.input} value={f.from||""} onChange={e=>upd("from",e.target.value)} placeholder="Port of Spain"/></Field><Field label="To"><input style={S.input} value={f.to||""} onChange={e=>upd("to",e.target.value)} placeholder="New York"/></Field></G2>
+          <G2><Field label="Depart Date"><input style={S.input} type="date" value={f.departDate||""} onChange={e=>upd("departDate",e.target.value)}/></Field><Field label="Depart Time"><input style={S.input} type="time" value={f.departTime||""} onChange={e=>upd("departTime",e.target.value)}/></Field></G2>
+          <G2><Field label="Arrive Date"><input style={S.input} type="date" value={f.arriveDate||""} onChange={e=>upd("arriveDate",e.target.value)}/></Field><Field label="Arrive Time"><input style={S.input} type="time" value={f.arriveTime||""} onChange={e=>upd("arriveTime",e.target.value)}/></Field></G2>
+        </div>
+      )}
+      {f.flightType==="Round Trip"&&(
+        <div>
+          <G2><Field label="Origin"><input style={S.input} value={f.from||""} onChange={e=>upd("from",e.target.value)} placeholder="Port of Spain"/></Field><Field label="Destination"><input style={S.input} value={f.to||""} onChange={e=>upd("to",e.target.value)} placeholder="New York"/></Field></G2>
+          <div style={{fontSize:11,color:T.accent,letterSpacing:1,marginBottom:10,fontWeight:700}}>OUTBOUND</div>
+          <G2><Field label="Depart Date"><input style={S.input} type="date" value={f.departDate||""} onChange={e=>upd("departDate",e.target.value)}/></Field><Field label="Depart Time"><input style={S.input} type="time" value={f.departTime||""} onChange={e=>upd("departTime",e.target.value)}/></Field></G2>
+          <G2><Field label="Arrive Date"><input style={S.input} type="date" value={f.arriveDate||""} onChange={e=>upd("arriveDate",e.target.value)}/></Field><Field label="Arrive Time"><input style={S.input} type="time" value={f.arriveTime||""} onChange={e=>upd("arriveTime",e.target.value)}/></Field></G2>
+          <div style={{fontSize:11,color:T.purple,letterSpacing:1,marginBottom:10,fontWeight:700}}>RETURN ({f.to||"Dest"} to {f.from||"Origin"})</div>
+          <G2><Field label="Return Depart Date"><input style={S.input} type="date" value={f.returnDate||""} onChange={e=>upd("returnDate",e.target.value)}/></Field><Field label="Return Depart Time"><input style={S.input} type="time" value={f.returnTime||""} onChange={e=>upd("returnTime",e.target.value)}/></Field></G2>
+          <G2><Field label="Return Arrive Date"><input style={S.input} type="date" value={f.returnArriveDate||""} onChange={e=>upd("returnArriveDate",e.target.value)}/></Field><Field label="Return Arrive Time"><input style={S.input} type="time" value={f.returnArriveTime||""} onChange={e=>upd("returnArriveTime",e.target.value)}/></Field></G2>
+        </div>
+      )}
+      {f.flightType==="Multi-City"&&(
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{fontSize:11,color:T.purple,fontWeight:700}}>SEGMENTS</div>
+            <button style={{...S.btn(T.purple),padding:"6px 12px",fontSize:12}} onClick={addSeg}>+ Add Segment</button>
+          </div>
+          {(f.segments||[]).length===0&&<div style={{fontSize:12,color:T.muted,marginBottom:10}}>No segments yet.</div>}
+          {(f.segments||[]).map((seg,i)=>(
+            <div key={seg.id} style={{background:T.surface,borderRadius:8,padding:"12px",marginBottom:10,border:`1px solid ${T.border}30`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <div style={{fontSize:11,color:T.purple,fontWeight:700}}>SEG {i+1}</div>
+                <button style={{background:"none",border:"none",color:T.red,cursor:"pointer",fontSize:16}} onClick={()=>delSeg(seg.id)}>✕</button>
+              </div>
+              <G2><Field label="From"><input style={S.input} value={seg.from||""} onChange={e=>updSeg(seg.id,"from",e.target.value)} placeholder="City"/></Field><Field label="To"><input style={S.input} value={seg.to||""} onChange={e=>updSeg(seg.id,"to",e.target.value)} placeholder="City"/></Field></G2>
+              <G2><Field label="Depart Date"><input style={S.input} type="date" value={seg.departDate||""} onChange={e=>updSeg(seg.id,"departDate",e.target.value)}/></Field><Field label="Depart Time"><input style={S.input} type="time" value={seg.departTime||""} onChange={e=>updSeg(seg.id,"departTime",e.target.value)}/></Field></G2>
+              <G2><Field label="Arrive Date"><input style={S.input} type="date" value={seg.arriveDate||""} onChange={e=>updSeg(seg.id,"arriveDate",e.target.value)}/></Field><Field label="Arrive Time"><input style={S.input} type="time" value={seg.arriveTime||""} onChange={e=>updSeg(seg.id,"arriveTime",e.target.value)}/></Field></G2>
+            </div>
+          ))}
+        </div>
+      )}
+      <SaveCancel onCancel={onClose} onSave={()=>onSave({...f,id:initial?.id||Date.now()})}/>
+    </Modal>
+  );
+}
+
+// ── TRIP DETAIL ───────────────────────────────────────────────────────────────
+function TripDetail({trip,onBack,onSave}){
+  const [form,setForm] = useState({...trip,legs:trip.legs||[],accommodations:trip.accommodations||[],files:trip.files||[]});
+  const [fModal,setFModal] = useState(null);
+  const [aModal,setAModal] = useState(null);
+  const [aForm,setAForm] = useState({});
+  const [filesOpen,setFilesOpen] = useState(false);
+  const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
+  const updA = (k,v)=>setAForm(f=>({...f,[k]:v}));
+  const statColors = {Booked:T.accent,Planning:T.muted};
+  const getFirst = leg=>{if(!leg)return null;if(leg.flightType==="Multi-City")return leg.segments?.[0]?.departDate||null;return leg.departDate||null;};
+  const getLast = leg=>{if(!leg)return null;if(leg.flightType==="Multi-City"){const s=leg.segments||[];return s[s.length-1]?.arriveDate||s[s.length-1]?.departDate||null;}if(leg.flightType==="Round Trip")return leg.returnArriveDate||leg.returnDate||null;return leg.arriveDate||leg.departDate||null;};
+  const sorted = [...form.legs].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));
+  const autoStart = sorted.length>0?getFirst(sorted[0]):null;
+  const autoEnd = sorted.length>0?getLast(sorted[sorted.length-1]):null;
+  const totalF = form.legs.reduce((s,l)=>s+Number(l.flightCost||0),0);
+  const totalA = form.accommodations.reduce((s,a)=>s+Number(a.cost||0),0);
+  function saveLeg(leg){setForm(f=>({...f,legs:fModal==="add"?[...f.legs,leg]:f.legs.map(l=>l.id===leg.id?leg:l)}));setFModal(null);}
+  function saveAcc(){const entry={...aForm,id:aModal==="add"?nextId(form.accommodations):aForm.id};setForm(f=>({...f,accommodations:aModal==="add"?[...f.accommodations,entry]:f.accommodations.map(a=>a.id===entry.id?entry:a)}));setAModal(null);}
+  function uploadFile(e){Array.from(e.target.files).forEach(file=>{const r=new FileReader();r.onload=ev=>setForm(f=>({...f,files:[...f.files,{name:file.name,type:file.type,size:file.size,dataUrl:ev.target.result,uploadedAt:new Date().toLocaleDateString()}]}));r.readAsDataURL(file);});e.target.value="";}
+  function dlFile(f){const a=document.createElement("a");a.href=f.dataUrl;a.download=f.name;a.click();}
+  return(
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+        <button style={{background:"none",border:"none",color:T.accent,cursor:"pointer",fontSize:22,padding:"0 4px",lineHeight:1}} onClick={()=>{onSave(form);onBack();}}>←</button>
+        <div style={{fontSize:18,fontWeight:700,letterSpacing:1}}>{form.trip||"TRIP DETAILS"}</div>
+      </div>
+      <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:16}}>// ← tap arrow to save & return</div>
+      <div style={S.card}>
+        <G2>
+          <Field label="Trip Name"><input style={S.input} value={form.trip||""} onChange={e=>upd("trip",e.target.value)} placeholder="e.g. World Cup 2026"/></Field>
+          <Field label="Status"><select style={S.input} value={form.status||"Planning"} onChange={e=>upd("status",e.target.value)}><option>Planning</option><option>Booked</option></select></Field>
+        </G2>
+        <G2>
+          <div>
+            <div style={S.label}>Start <span style={{color:T.accent,fontSize:9}}>(auto)</span></div>
+            <div style={{...S.input,color:autoStart?T.text:T.muted,background:T.bg,cursor:"default",fontSize:13}}>{autoStart?fmtDate(autoStart):"From first flight"}</div>
+          </div>
+          <div>
+            <div style={S.label}>End <span style={{color:T.accent,fontSize:9}}>(auto)</span></div>
+            <div style={{...S.input,color:autoEnd?T.text:T.muted,background:T.bg,cursor:"default",fontSize:13}}>{autoEnd?fmtDate(autoEnd):"From last flight"}</div>
+          </div>
+        </G2>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:4}}>
+          <span style={S.badge(statColors[form.status]||T.muted)}>{form.status}</span>
+          {(autoStart||autoEnd)&&<span style={{fontSize:12,color:T.muted}}>{fmtDate(autoStart)||"?"} → {fmtDate(autoEnd)||"?"}</span>}
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
+        <StatCard label="Flights" value={fmt(totalF)} color={T.accent}/>
+        <StatCard label="Stays" value={fmt(totalA)} color={T.purple}/>
+        <StatCard label="Total" value={fmt(totalF+totalA)} color={T.green}/>
+      </div>
+      <div style={S.card}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{fontSize:12,letterSpacing:2,color:T.accent,textTransform:"uppercase",fontWeight:700}}>✈ Flights</div>
+          <button style={{...S.btn(T.green),padding:"6px 14px",fontSize:12}} onClick={()=>setFModal("add")}>+ Add Flight</button>
+        </div>
+        {form.legs.length===0&&<div style={{fontSize:12,color:T.muted,textAlign:"center",padding:"8px 0"}}>No flights added yet.</div>}
+        {form.legs.map(leg=>(
+          <LegCard key={leg.id} leg={leg} onEdit={()=>setFModal(leg)} onDelete={()=>setForm(f=>({...f,legs:f.legs.filter(l=>l.id!==leg.id)}))}/>
+        ))}
+      </div>
+      <div style={S.card}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{fontSize:12,letterSpacing:2,color:T.accent,textTransform:"uppercase",fontWeight:700}}>🏨 Accommodation</div>
+          <button style={{...S.btn(T.green),padding:"6px 14px",fontSize:12}} onClick={()=>{setAForm({city:"",hotel:"",checkIn:"",checkOut:"",checkInTime:"",cost:""});setAModal("add");}}>+ Add Stay</button>
+        </div>
+        {form.accommodations.length===0&&<div style={{fontSize:12,color:T.muted,textAlign:"center",padding:"8px 0"}}>No accommodation added yet.</div>}
+        {form.accommodations.map(acc=>(
+          <div key={acc.id} style={{background:T.bg,borderRadius:10,padding:"12px",border:`1px solid ${T.border}30`,marginBottom:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700,fontSize:13,marginBottom:6}}>{acc.hotel||"Accommodation"} <span style={{color:T.muted,fontWeight:400,fontSize:12}}>· {acc.city}</span></div>
+                <div style={{fontSize:12,color:T.muted,display:"flex",flexDirection:"column",gap:3}}>
+                  {acc.checkIn&&<span>In: {fmtDate(acc.checkIn)}{acc.checkInTime?` ${acc.checkInTime}`:""}</span>}
+                  {acc.checkOut&&<span>Out: {fmtDate(acc.checkOut)}</span>}
+                  {acc.cost&&<span style={{color:T.purple}}>💰 {fmt(acc.cost)}</span>}
+                </div>
+              </div>
+              <ItemActions label={acc.hotel||acc.city} onEdit={()=>{setAForm({...acc});setAModal("edit");}} onDelete={()=>setForm(f=>({...f,accommodations:f.accommodations.filter(a=>a.id!==acc.id)}))}/>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={S.card}>
+        <button style={S.outlineBtn(filesOpen)} onClick={()=>setFilesOpen(o=>!o)}>Attached Files ({form.files.length})</button>
+        {filesOpen&&(
+          <div style={{marginTop:10}}>
+            <label style={{...S.btn(T.purple),padding:"6px 14px",fontSize:12,cursor:"pointer",display:"inline-block",marginBottom:10}}>+ Upload<input type="file" multiple style={{display:"none"}} onChange={uploadFile}/></label>
+            {form.files.length===0&&<div style={{fontSize:12,color:T.muted}}>No files yet.</div>}
+            {form.files.map((f,fi)=>(
+              <div key={fi} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:T.bg,borderRadius:8,padding:"8px 10px",marginBottom:6}}>
+                <div style={{minWidth:0,flex:1}}><div style={{color:T.text,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div><div style={{color:T.muted,fontSize:10}}>{f.uploadedAt} · {(f.size/1024).toFixed(1)} KB</div></div>
+                <div style={{display:"flex",gap:6,marginLeft:8}}>
+                  <button style={{...S.btn(T.green),padding:"4px 10px",fontSize:11}} onClick={()=>dlFile(f)}>⬇</button>
+                  <button style={{...S.btn(T.red),padding:"4px 8px",fontSize:11}} onClick={()=>setForm(f2=>({...f2,files:f2.files.filter((_,j)=>j!==fi)}))}>✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {fModal&&<FlightModal initial={fModal==="add"?null:fModal} onSave={saveLeg} onClose={()=>setFModal(null)}/>}
+      {aModal&&(
+        <Modal title={aModal==="add"?"Add Accommodation":"Edit Accommodation"} onClose={()=>setAModal(null)}>
+          <Field label="City"><input style={S.input} value={aForm.city||""} onChange={e=>updA("city",e.target.value)} placeholder="e.g. New York"/></Field>
+          <Field label="Hotel / Property"><input style={S.input} value={aForm.hotel||""} onChange={e=>updA("hotel",e.target.value)} placeholder="e.g. Hilton Midtown"/></Field>
+          <G2>
+            <Field label="Check-in Date"><input style={S.input} type="date" value={aForm.checkIn||""} onChange={e=>updA("checkIn",e.target.value)}/></Field>
+            <Field label="Check-in Time"><input style={S.input} type="time" value={aForm.checkInTime||""} onChange={e=>updA("checkInTime",e.target.value)}/></Field>
+          </G2>
+          <Field label="Check-out Date"><input style={S.input} type="date" value={aForm.checkOut||""} onChange={e=>updA("checkOut",e.target.value)}/></Field>
+          <Field label="Total Cost (TTD)"><input style={S.input} type="number" value={aForm.cost||""} onChange={e=>updA("cost",e.target.value)} placeholder="0.00"/></Field>
+          <SaveCancel onCancel={()=>setAModal(null)} onSave={saveAcc}/>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ── LEISURE MAIN ──────────────────────────────────────────────────────────────
+function Leisure({data,setData}){
+  const [modal,setModal] = useState(null);
+  const [form,setForm] = useState({});
+  const [search,setSearch] = useState("");
+  const [collapsed,setCollapsed] = useState(false);
+  const [activeTrip,setActiveTrip] = useState(null);
+  const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
+  const statColors = {Booked:T.accent,Planning:T.muted};
+  const getFirst = leg=>{if(!leg)return null;if(leg.flightType==="Multi-City")return leg.segments?.[0]?.departDate||null;return leg.departDate||null;};
+  const getLast = leg=>{if(!leg)return null;if(leg.flightType==="Multi-City"){const s=leg.segments||[];return s[s.length-1]?.arriveDate||s[s.length-1]?.departDate||null;}if(leg.flightType==="Round Trip")return leg.returnArriveDate||leg.returnDate||null;return leg.arriveDate||leg.departDate||null;};
+  const tripDates = r=>{const sl=[...(r.legs||[])].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));return{start:sl.length>0?getFirst(sl[0]):null,end:sl.length>0?getLast(sl[sl.length-1]):null};};
+  const tripCost = r=>(r.legs||[]).reduce((s,l)=>s+Number(l.flightCost||0),0)+(r.accommodations||[]).reduce((s,a)=>s+Number(a.cost||0),0);
+  const cyTrips = data.leisure.filter(r=>{const fd=getFirst((r.legs||[]).sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""))[0]);return !fd||logYear(fd)===CY;});
+  const total = cyTrips.reduce((s,r)=>s+tripCost(r),0);
+  const shown = data.leisure.filter(r=>!search||r.trip.toLowerCase().includes(search.toLowerCase())||(r.status||"").toLowerCase().includes(search.toLowerCase()));
+  function save(){const entry={...form,legs:form.legs||[],accommodations:form.accommodations||[],files:form.files||[]};setData(d=>({...d,leisure:modal==="add"?[...d.leisure,{...entry,id:nextId(d.leisure)}]:d.leisure.map(r=>r.id===form.id?entry:r)}));setModal(null);}
+  function saveTrip(u){setData(d=>({...d,leisure:d.leisure.map(r=>r.id===u.id?u:r)}));}
+  if(activeTrip!==null){const trip=data.leisure.find(r=>r.id===activeTrip);if(trip)return <TripDetail trip={trip} onBack={()=>setActiveTrip(null)} onSave={saveTrip}/>;}
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+        <div style={{fontSize:18,fontWeight:700,letterSpacing:2}}>LEISURE & TRAVEL</div>
+        <button style={{...S.btn(T.green),padding:"8px 14px"}} onClick={()=>{setForm({trip:"",status:"Planning",legs:[],accommodations:[],files:[]});setModal("add");}}>+ Add</button>
+      </div>
+      <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// TRIPS & ACTIVITIES · Tap card for details</div>
+      <SearchBar value={search} onChange={setSearch} placeholder="Search trips..."/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+        <StatCard label={`${CY} Trips`} value={cyTrips.length} color={T.accent}/>
+        <StatCard label={`${CY} Trip Cost`} value={fmt(total)} color={T.green}/>
+      </div>
+      <ListToggle collapsed={collapsed} onToggle={()=>setCollapsed(c=>!c)} count={shown.length} label="Trips"/>
+      {!collapsed&&(
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {shown.map(r=>{
+            const {start,end}=tripDates(r);
+            const tc=tripCost(r);
+            return(
+              <div key={r.id} onClick={()=>setActiveTrip(r.id)} style={{...S.card,cursor:"pointer",position:"relative",overflow:"hidden",borderColor:T.green+"40"}} onMouseEnter={e=>e.currentTarget.style.boxShadow=`0 0 16px ${T.green}20`} onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
+                <div style={{position:"absolute",top:-8,right:-8,fontSize:60,opacity:0.05}}>✈</div>
+                <div style={{fontWeight:700,fontSize:16,marginBottom:6,color:T.text}}>{r.trip}</div>
+                {(start||end)&&<div style={{fontSize:12,color:T.muted,marginBottom:8}}>{fmtDate(start)}{end?` → ${fmtDate(end)}`:""}</div>}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:8}}>
+                  <div>
+                    <div style={{fontSize:10,color:T.muted,letterSpacing:1,marginBottom:2}}>TOTAL TRIP COST</div>
+                    <div style={{fontSize:18,fontWeight:700,color:T.green}}>{tc>0?fmt(tc):"TBD"}</div>
+                  </div>
+                  <span style={S.badge(statColors[r.status]||T.muted)}>{r.status}</span>
+                </div>
+                <div style={{display:"flex",gap:10,fontSize:11,color:T.muted,marginBottom:4}}>
+                  {r.legs?.length>0&&<span>✈ {r.legs.length} flight{r.legs.length!==1?"s":""}</span>}
+                  {r.accommodations?.length>0&&<span>🏨 {r.accommodations.length} stay{r.accommodations.length!==1?"s":""}</span>}
+                </div>
+                <div style={{fontSize:9,color:T.border,letterSpacing:1}}>TAP FOR DETAILS →</div>
+                <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}} onClick={e=>e.stopPropagation()}>
+                  <ItemActions label={r.trip} onEdit={()=>{setForm({...r});setModal("edit");}} onDelete={()=>setData(d=>({...d,leisure:d.leisure.filter(x=>x.id!==r.id)}))}/>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {modal&&(
+        <Modal title={modal==="add"?"Add Trip":"Edit Trip"} onClose={()=>setModal(null)}>
+          <Field label="Trip Name"><input style={S.input} value={form.trip||""} onChange={e=>upd("trip",e.target.value)} placeholder="e.g. World Cup 2026"/></Field>
+          <Field label="Status"><select style={S.input} value={form.status||"Planning"} onChange={e=>upd("status",e.target.value)}><option>Planning</option><option>Booked</option></select></Field>
+          <SaveCancel onCancel={()=>setModal(null)} onSave={save}/>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ── INVESTMENTS ───────────────────────────────────────────────────────────────
+function Investments({data,setData}){
+  const [modal,setModal] = useState(null);
+  const [form,setForm] = useState({});
+  const [search,setSearch] = useState("");
+  const [collapsed,setCollapsed] = useState(false);
+  const [cardFilter,setCardFilter] = useState("All");
+  const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
+  const total = data.investments.reduce((s,r)=>s+Number(r.value||0),0);
+  const etfTotal = data.investments.filter(r=>r.type==="ETF").reduce((s,r)=>s+Number(r.value||0),0);
+  const stockTotal = data.investments.filter(r=>r.type==="Stock").reduce((s,r)=>s+Number(r.value||0),0);
+  const etfPct = total>0?((etfTotal/total)*100).toFixed(1):"0";
+  const stockPct = total>0?((stockTotal/total)*100).toFixed(1):"0";
+  const baseShown = [...data.investments].sort((a,b)=>b.value-a.value).filter(r=>cardFilter==="ETF"?r.type==="ETF":cardFilter==="Stock"?r.type==="Stock":true);
+  const shown = baseShown.filter(r=>!search||r.ticker.toLowerCase().includes(search.toLowerCase())||r.type.toLowerCase().includes(search.toLowerCase()));
+  function save(){const entry={...form,value:Number(form.value||0)};setData(d=>({...d,investments:modal==="add"?[...d.investments,{...entry,id:nextId(d.investments)}]:d.investments.map(r=>r.id===form.id?entry:r)}));setModal(null);}
+  const typeColor = t=>t==="ETF"?T.accent:t==="Stock"?T.purple:T.yellow;
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+        <div style={{fontSize:18,fontWeight:700,letterSpacing:2}}>INVESTMENTS</div>
+        <button style={{...S.btn(T.green),padding:"8px 14px"}} onClick={()=>{setForm({ticker:"",type:"ETF",value:""});setModal("add");}}>+ Add</button>
+      </div>
+      <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// PORTFOLIO TRACKER</div>
+      <SearchBar value={search} onChange={setSearch} placeholder="Search ticker or type..."/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
+        <StatCard label="Total" value={fmt(total)} color={T.green} onClick={()=>setCardFilter(f=>f==="All"?"All":"All")} active={cardFilter==="All"}/>
+        <StatCard label={`ETF ${etfPct}%`} value={fmt(etfTotal)} color={T.accent} onClick={()=>setCardFilter(f=>f==="ETF"?"All":"ETF")} active={cardFilter==="ETF"}/>
+        <StatCard label={`Stock ${stockPct}%`} value={fmt(stockTotal)} color={T.purple} onClick={()=>setCardFilter(f=>f==="Stock"?"All":"Stock")} active={cardFilter==="Stock"}/>
+      </div>
+      <ListToggle collapsed={collapsed} onToggle={()=>setCollapsed(c=>!c)} count={shown.length} label="Holdings"/>
+      {!collapsed&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {shown.length===0&&<div style={{...S.card,textAlign:"center",color:T.muted}}>No holdings match.</div>}
+          {shown.map(r=>{
+            const pct = total>0?((r.value/total)*100).toFixed(1):"0";
+            const tc = typeColor(r.type);
+            const typeTotal = r.type==="ETF"?etfTotal:r.type==="Stock"?stockTotal:0;
+            const typePct = typeTotal>0?((r.value/typeTotal)*100).toFixed(1):"—";
+            return(
+              <div key={r.id} style={S.card}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:16,color:tc,marginBottom:4}}>{r.ticker}</div>
+                    <span style={S.badge(tc)}>{r.type}</span>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
+                    <div style={{fontSize:18,fontWeight:700,color:T.green}}>{fmt(r.value)}</div>
+                    <div style={{fontSize:11,color:T.muted,textAlign:"right"}}>
+                      <span style={{color:T.text}}>{pct}%</span> of total
+                    </div>
+                    <div style={{fontSize:11,color:T.muted,textAlign:"right"}}>
+                      <span style={{color:tc}}>{typePct}%</span> of {r.type}s
+                    </div>
+                    <ItemActions label={r.ticker} onEdit={()=>{setForm({...r});setModal("edit");}} onDelete={()=>setData(d=>({...d,investments:d.investments.filter(x=>x.id!==r.id)}))}/>
+                  </div>
+                </div>
+                <div style={{marginTop:10,height:4,background:T.border,borderRadius:4}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:tc,borderRadius:4}}/>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {modal&&(
+        <Modal title={modal==="add"?"Add Holding":"Edit Holding"} onClose={()=>setModal(null)}>
+          <Field label="Ticker"><input style={S.input} value={form.ticker||""} onChange={e=>upd("ticker",e.target.value.toUpperCase())} placeholder="e.g. VOO"/></Field>
+          <Field label="Type"><select style={S.input} value={form.type||"ETF"} onChange={e=>upd("type",e.target.value)}><option>ETF</option><option>Stock</option><option>Other</option></select></Field>
+          <Field label="Current Value (USD)"><input style={S.input} type="number" value={form.value||""} onChange={e=>upd("value",e.target.value)} placeholder="0.00"/></Field>
+          <SaveCancel onCancel={()=>setModal(null)} onSave={save}/>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ── NAV + APP SHELL ───────────────────────────────────────────────────────────
+const NAV=[
+  {id:"overview",label:"Overview",icon:"◈"},
+  {id:"expenses",label:"Expenses",icon:"◉"},
+  {id:"certs",label:"Certs",icon:"◎"},
+  {id:"personal",label:"Docs",icon:"◫"},
+  {id:"subscriptions",label:"Subs",icon:"◌"},
+  {id:"car",label:"Car",icon:"◧"},
+  {id:"leisure",label:"Leisure",icon:"◑"},
+  {id:"investments",label:"Invest",icon:"◐"},
+];
+const PAGES={overview:Overview,expenses:Expenses,certs:Certifications,personal:PersonalDocs,subscriptions:Subscriptions,car:CarMaintenance,leisure:Leisure,investments:Investments};
+
+export default function App(){
+  const [active,setActive] = useState("overview");
+  const [data,setData] = useState(INIT);
+  const [menuOpen,setMenuOpen] = useState(false);
+  const Page = PAGES[active];
+  return(
+    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",fontSize:14}}>
+      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+      <style>{`
+        *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+        input,select,button{font-family:'IBM Plex Mono','Courier New',monospace;}
+        input:focus,select:focus{border-color:${T.accent}!important;outline:none;box-shadow:0 0 0 2px ${T.accent}20;}
+        button:active{opacity:0.7;}
+        ::-webkit-scrollbar{width:4px;height:4px;}
+        ::-webkit-scrollbar-thumb{background:${T.border};border-radius:4px;}
+        input[type="date"],input[type="time"]{color-scheme:dark;}
+      `}</style>
+      {/* TOP BAR */}
+      <div style={{position:"sticky",top:0,zIndex:200,background:T.surface,borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 16px",height:52}}>
+        <div style={{fontWeight:700,letterSpacing:4,color:T.accent,fontSize:15}}>⬡ FINTRAX</div>
+        {/* Desktop nav */}
+        <div style={{display:"none",gap:2,flexWrap:"wrap"}} className="desk-nav">
+          {NAV.map(n=>(
+            <button key={n.id} onClick={()=>setActive(n.id)} style={{padding:"6px 10px",borderRadius:6,border:`1px solid ${active===n.id?T.accent:"transparent"}`,background:active===n.id?T.accentGlow:"transparent",color:active===n.id?T.accent:T.muted,cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>
+              {n.icon} {n.label}
+            </button>
+          ))}
+        </div>
+        <button onClick={()=>setMenuOpen(m=>!m)} style={{background:"none",border:`1px solid ${T.border}`,color:T.accent,fontSize:20,cursor:"pointer",padding:"4px 10px",borderRadius:8,fontFamily:"inherit",lineHeight:1}}>
+          {menuOpen?"✕":"☰"}
+        </button>
+      </div>
+      {/* Mobile slide-up menu */}
+      {menuOpen&&(
+        <div style={{position:"fixed",top:52,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",zIndex:199}} onClick={()=>setMenuOpen(false)}>
+          <div style={{background:T.surface,borderBottom:`1px solid ${T.border}`,padding:16}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+              {NAV.map(n=>(
+                <button key={n.id} onClick={()=>{setActive(n.id);setMenuOpen(false);}} style={{padding:"12px 6px",borderRadius:10,border:`1px solid ${active===n.id?T.accent:T.border}`,background:active===n.id?T.accentGlow:T.card,color:active===n.id?T.accent:T.muted,cursor:"pointer",fontSize:11,fontFamily:"inherit",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                  <span style={{fontSize:18}}>{n.icon}</span>
+                  <span style={{fontSize:10,letterSpacing:1}}>{n.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* PAGE CONTENT */}
+      <div style={{maxWidth:700,margin:"0 auto",padding:"20px 14px 80px"}}>
+        <Page data={data} setData={setData}/>
+      </div>
+      {/* BOTTOM NAV BAR (mobile) */}
+      <div style={{position:"fixed",bottom:0,left:0,right:0,background:T.surface,borderTop:`1px solid ${T.border}`,display:"flex",zIndex:190,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
+        {NAV.slice(0,5).map(n=>(
+          <button key={n.id} onClick={()=>setActive(n.id)} style={{flex:1,padding:"10px 2px 8px",background:"none",border:"none",color:active===n.id?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderTop:`2px solid ${active===n.id?T.accent:"transparent"}`}}>
+            <span style={{fontSize:16}}>{n.icon}</span>
+            <span style={{fontSize:9,letterSpacing:1}}>{n.label}</span>
+          </button>
+        ))}
+        <button onClick={()=>setMenuOpen(m=>!m)} style={{flex:1,padding:"10px 2px 8px",background:"none",border:"none",color:menuOpen?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderTop:`2px solid ${menuOpen?T.accent:"transparent"}`}}>
+          <span style={{fontSize:16}}>⋯</span>
+          <span style={{fontSize:9,letterSpacing:1}}>More</span>
+        </button>
+      </div>
+    </div>
+  );
+}
