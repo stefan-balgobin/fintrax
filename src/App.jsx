@@ -1153,28 +1153,62 @@ const NAV=[
 ];
 const PAGES={overview:Overview,expenses:Expenses,certs:Certifications,personal:PersonalDocs,subscriptions:Subscriptions,car:CarMaintenance,leisure:Leisure,investments:Investments};
 
+import { createClient } from "@supabase/supabase-js";
+
+const SUPABASE_URL = "https://cpsyxvygcmmjxthvbiqd.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_1ilCgCSAMw6tVGTtLemgsw_jOvcrwx8";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 export default function App(){
   const [active,setActive] = useState("overview");
-  const [data,setData] = useState(()=>{
-    try {
-      const saved = localStorage.getItem("fintrax_data");
-      return saved ? JSON.parse(saved) : INIT;
-    } catch(e) {
-      return INIT;
-    }
-  });
+  const [data,setData] = useState(INIT);
   const [menuOpen,setMenuOpen] = useState(false);
+  const [syncing,setSyncing] = useState(false);
+  const [loaded,setLoaded] = useState(false);
 
-  // Save to localStorage whenever data changes
+  // Load data from Supabase on first open
+  React.useEffect(()=>{
+    async function loadData(){
+      try {
+        const {data:rows,error} = await supabase
+          .from("fintrax_data")
+          .select("data")
+          .eq("id","main")
+          .single();
+        if(!error && rows && rows.data && Object.keys(rows.data).length > 0){
+          setData({...INIT,...rows.data});
+        }
+      } catch(e){
+        console.log("Load error:",e);
+      }
+      setLoaded(true);
+    }
+    loadData();
+  },[]);
+
+  // Save data to Supabase whenever it changes
   const setDataAndSave = (updater) => {
     setData(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      try { localStorage.setItem("fintrax_data", JSON.stringify(next)); } catch(e) {}
+      setSyncing(true);
+      supabase
+        .from("fintrax_data")
+        .upsert({id:"main", data:next, updated_at: new Date().toISOString()})
+        .then(()=>setSyncing(false))
+        .catch(()=>setSyncing(false));
       return next;
     });
   };
 
   const Page = PAGES[active];
+
+  if(!loaded) return(
+    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
+      <div style={{fontSize:24,color:T.accent}}>⬡ FINTRAX</div>
+      <div style={{fontSize:12,color:T.muted,letterSpacing:2}}>Loading your data...</div>
+    </div>
+  );
+
   return(
     <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",fontSize:14}}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
@@ -1190,17 +1224,12 @@ export default function App(){
       {/* TOP BAR */}
       <div style={{position:"sticky",top:0,zIndex:200,background:T.surface,borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 16px",height:52}}>
         <div style={{fontWeight:700,letterSpacing:4,color:T.accent,fontSize:15}}>⬡ FINTRAX</div>
-        {/* Desktop nav */}
-        <div style={{display:"none",gap:2,flexWrap:"wrap"}} className="desk-nav">
-          {NAV.map(n=>(
-            <button key={n.id} onClick={()=>setActive(n.id)} style={{padding:"6px 10px",borderRadius:6,border:`1px solid ${active===n.id?T.accent:"transparent"}`,background:active===n.id?T.accentGlow:"transparent",color:active===n.id?T.accent:T.muted,cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>
-              {n.icon} {n.label}
-            </button>
-          ))}
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          {syncing&&<div style={{fontSize:10,color:T.muted,letterSpacing:1}}>saving...</div>}
+          <button onClick={()=>setMenuOpen(m=>!m)} style={{background:"none",border:`1px solid ${T.border}`,color:T.accent,fontSize:20,cursor:"pointer",padding:"4px 10px",borderRadius:8,fontFamily:"inherit",lineHeight:1}}>
+            {menuOpen?"✕":"☰"}
+          </button>
         </div>
-        <button onClick={()=>setMenuOpen(m=>!m)} style={{background:"none",border:`1px solid ${T.border}`,color:T.accent,fontSize:20,cursor:"pointer",padding:"4px 10px",borderRadius:8,fontFamily:"inherit",lineHeight:1}}>
-          {menuOpen?"✕":"☰"}
-        </button>
       </div>
       {/* Mobile slide-up menu */}
       {menuOpen&&(
@@ -1221,7 +1250,7 @@ export default function App(){
       <div style={{maxWidth:700,margin:"0 auto",padding:"20px 14px 80px"}}>
         <Page data={data} setData={setDataAndSave}/>
       </div>
-      {/* BOTTOM NAV BAR (mobile) */}
+      {/* BOTTOM NAV BAR */}
       <div style={{position:"fixed",bottom:0,left:0,right:0,background:T.surface,borderTop:`1px solid ${T.border}`,display:"flex",zIndex:190,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
         {NAV.slice(0,5).map(n=>(
           <button key={n.id} onClick={()=>setActive(n.id)} style={{flex:1,padding:"10px 2px 8px",background:"none",border:"none",color:active===n.id?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderTop:`2px solid ${active===n.id?T.accent:"transparent"}`}}>
