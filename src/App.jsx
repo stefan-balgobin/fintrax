@@ -1164,103 +1164,115 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   global: { headers: { apikey: SUPABASE_ANON_KEY } }
 });
 
-// Convert username to fake email for Supabase auth
-const toEmail = u => `${u.toLowerCase().replace(/\s+/g,"")}@fintrax.app`;
+// Convert username to a stable email — trim whitespace, lowercase, remove all spaces
+const toEmail = u => `${u.trim().toLowerCase().replace(/\s+/g,".")}@fintrax.app`;
 
 // ── AUTH SCREEN ───────────────────────────────────────────────────────────────
 function AuthScreen({onAuth}){
-  const [screen,setScreen] = useState("login"); // "login" | "signup"
+  const [screen,setScreen] = useState("login");
   const [username,setUsername] = useState("");
   const [password,setPassword] = useState("");
   const [error,setError] = useState("");
   const [loading,setLoading] = useState(false);
   const [showPass,setShowPass] = useState(false);
 
+  function switchScreen(s){ setScreen(s); setError(""); setUsername(""); setPassword(""); }
+
   async function handleLogin(e){
     e.preventDefault();
-    if(!username||!password){setError("Please enter your username and password.");return;}
-    setLoading(true);setError("");
-    const {data,error:err} = await supabase.auth.signInWithPassword({email:toEmail(username),password});
-    setLoading(false);
-    if(err){setError("Incorrect username or password. Please try again.");return;}
-    onAuth(data.user);
-  }
-
-  async function handleSignup(e){
-    e.preventDefault();
-    if(!username||!password){setError("Please fill in all fields.");return;}
-    if(username.length<3){setError("Username must be at least 3 characters.");return;}
-    if(password.length<6){setError("Password must be at least 6 characters.");return;}
-    setLoading(true);setError("");
-    const {data,error:err} = await supabase.auth.signUp({email:toEmail(username),password,options:{data:{username}}});
+    const u = username.trim();
+    const p = password;
+    if(!u||!p){ setError("Please enter your username and password."); return; }
+    setLoading(true); setError("");
+    const {data,error:err} = await supabase.auth.signInWithPassword({
+      email: toEmail(u),
+      password: p,
+    });
     setLoading(false);
     if(err){
-      if(err.message.includes("already registered")){setError("That username is already taken. Please choose another.");}
-      else{setError("Something went wrong. Please try again.");}
+      if(err.message.toLowerCase().includes("email not confirmed")){
+        setError("Account not confirmed. Please contact the app owner.");
+      } else {
+        setError("Incorrect username or password. Please try again.");
+      }
       return;
     }
     onAuth(data.user);
   }
 
+  async function handleSignup(e){
+    e.preventDefault();
+    const u = username.trim();
+    const p = password;
+    if(!u||!p){ setError("Please fill in all fields."); return; }
+    if(u.length<3){ setError("Username must be at least 3 characters."); return; }
+    if(p.length<6){ setError("Password must be at least 6 characters."); return; }
+    setLoading(true); setError("");
+    const email = toEmail(u);
+    const {data,error:err} = await supabase.auth.signUp({
+      email,
+      password: p,
+      options: { data: { username: u }, emailRedirectTo: null },
+    });
+    setLoading(false);
+    if(err){
+      if(err.message.toLowerCase().includes("already registered")||err.message.toLowerCase().includes("already exists")){
+        setError("That username is already taken. Please choose another.");
+      } else {
+        setError(`Sign up failed: ${err.message}`);
+      }
+      return;
+    }
+    // If email confirmation is disabled, user is returned immediately
+    if(data?.user && data.user.identities && data.user.identities.length === 0){
+      setError("That username is already taken. Please choose another.");
+      return;
+    }
+    if(data?.user){
+      onAuth(data.user);
+    } else {
+      setError("Account created but could not log in automatically. Please log in manually.");
+      switchScreen("login");
+    }
+  }
+
   const isLogin = screen==="login";
+  const inp = {width:"100%",background:T.card,border:`1px solid ${T.border}`,borderRadius:8,color:T.text,padding:"12px 14px",fontSize:14,fontFamily:"inherit",boxSizing:"border-box"};
   return(
-    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,boxSizing:"border-box",overflowX:"hidden"}}>
+    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"24px 20px",boxSizing:"border-box",overflowX:"hidden"}}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
       <style>{`*{box-sizing:border-box;}input:focus{border-color:${T.accent}!important;outline:none;}button:active{opacity:0.7;}`}</style>
       <div style={{width:"100%",maxWidth:380}}>
-        {/* Logo */}
-        <div style={{textAlign:"center",marginBottom:36}}>
-          <div style={{fontSize:36,color:T.accent,marginBottom:8}}>⬡</div>
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <div style={{fontSize:40,color:T.accent,marginBottom:8}}>⬡</div>
           <div style={{fontSize:22,fontWeight:700,letterSpacing:4,color:T.accent}}>FINTRAX</div>
           <div style={{fontSize:11,color:T.muted,letterSpacing:2,marginTop:4}}>// PERSONAL FINANCE DASHBOARD</div>
         </div>
-        {/* Card */}
-        <div style={{background:T.surface,borderRadius:16,padding:28,border:`1px solid ${T.border}`}}>
-          {/* Tab switcher */}
+        <div style={{background:T.surface,borderRadius:16,padding:"24px 20px",border:`1px solid ${T.border}`}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:24}}>
-            <button onClick={()=>{setScreen("login");setError("");}} style={{padding:"10px",borderRadius:8,border:`1px solid ${isLogin?T.accent:T.border}`,background:isLogin?T.accentGlow:"none",color:isLogin?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,letterSpacing:1}}>
-              LOG IN
-            </button>
-            <button onClick={()=>{setScreen("signup");setError("");}} style={{padding:"10px",borderRadius:8,border:`1px solid ${!isLogin?T.green:T.border}`,background:!isLogin?T.green+"20":"none",color:!isLogin?T.green:T.muted,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,letterSpacing:1}}>
-              SIGN UP
-            </button>
+            <button type="button" onClick={()=>switchScreen("login")} style={{padding:"10px",borderRadius:8,border:`1px solid ${isLogin?T.accent:T.border}`,background:isLogin?T.accentGlow:"none",color:isLogin?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,letterSpacing:1}}>LOG IN</button>
+            <button type="button" onClick={()=>switchScreen("signup")} style={{padding:"10px",borderRadius:8,border:`1px solid ${!isLogin?T.green:T.border}`,background:!isLogin?T.green+"20":"none",color:!isLogin?T.green:T.muted,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,letterSpacing:1}}>SIGN UP</button>
           </div>
-          {/* Form */}
           <form onSubmit={isLogin?handleLogin:handleSignup}>
-            <div style={{marginBottom:16}}>
+            <div style={{marginBottom:14}}>
               <label style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",display:"block",marginBottom:6}}>Username</label>
-              <input
-                style={{width:"100%",background:T.card,border:`1px solid ${T.border}`,borderRadius:8,color:T.text,padding:"12px 14px",fontSize:14,fontFamily:"inherit"}}
-                value={username}
-                onChange={e=>setUsername(e.target.value)}
-                placeholder="Enter your username"
-                autoCapitalize="none"
-                autoCorrect="off"
-                autoComplete="username"
-              />
+              <input style={inp} value={username} onChange={e=>setUsername(e.target.value)} placeholder="Enter your username" autoCapitalize="none" autoCorrect="off" autoComplete="username" spellCheck="false"/>
             </div>
             <div style={{marginBottom:20}}>
               <label style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",display:"block",marginBottom:6}}>Password</label>
               <div style={{position:"relative"}}>
-                <input
-                  style={{width:"100%",background:T.card,border:`1px solid ${T.border}`,borderRadius:8,color:T.text,padding:"12px 44px 12px 14px",fontSize:14,fontFamily:"inherit"}}
-                  type={showPass?"text":"password"}
-                  value={password}
-                  onChange={e=>setPassword(e.target.value)}
-                  placeholder={isLogin?"Enter your password":"Min. 6 characters"}
-                  autoComplete={isLogin?"current-password":"new-password"}
-                />
-                <button type="button" onClick={()=>setShowPass(s=>!s)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:14,padding:4}}>
+                <input style={{...inp,paddingRight:44}} type={showPass?"text":"password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder={isLogin?"Enter your password":"Min. 6 characters"} autoComplete={isLogin?"current-password":"new-password"}/>
+                <button type="button" onClick={()=>setShowPass(s=>!s)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:16,padding:4,lineHeight:1}}>
                   {showPass?"🙈":"👁"}
                 </button>
               </div>
             </div>
-            {error&&<div style={{background:T.red+"15",border:`1px solid ${T.red}40`,borderRadius:8,padding:"10px 14px",fontSize:12,color:T.red,marginBottom:16,lineHeight:1.5}}>{error}</div>}
+            {error&&<div style={{background:T.red+"15",border:`1px solid ${T.red}40`,borderRadius:8,padding:"10px 14px",fontSize:12,color:T.red,marginBottom:16,lineHeight:1.6}}>{error}</div>}
             <button type="submit" disabled={loading} style={{width:"100%",padding:"13px",borderRadius:8,border:"none",background:isLogin?T.accent:T.green,color:"#0a0e1a",cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700,letterSpacing:1,opacity:loading?0.7:1}}>
               {loading?(isLogin?"Logging in...":"Creating account..."):(isLogin?"LOG IN":"CREATE ACCOUNT")}
             </button>
           </form>
-          {!isLogin&&<div style={{fontSize:11,color:T.muted,textAlign:"center",marginTop:16,lineHeight:1.6}}>By signing up you agree to keep your login details safe. Your data is private and only accessible by you.</div>}
+          {!isLogin&&<div style={{fontSize:11,color:T.muted,textAlign:"center",marginTop:14,lineHeight:1.6}}>Your data is private and only accessible by you.</div>}
         </div>
       </div>
     </div>
