@@ -19,7 +19,7 @@ const logYear = s => s && s!=="-" ? new Date(s).getFullYear() : null;
 
 // ── STYLES ────────────────────────────────────────────────────────────────────
 const S = {
-  card: { background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 16px", marginBottom:12, width:"100%", boxSizing:"border-box" },
+  card: { background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 16px", marginBottom:12, width:"100%", boxSizing:"border-box", overflow:"hidden", minWidth:0 },
   label: { fontSize:10, letterSpacing:2, color:T.muted, textTransform:"uppercase", marginBottom:6, display:"block" },
   input: { width:"100%", background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, color:T.text, padding:"10px 12px", fontSize:14, fontFamily:"inherit", boxSizing:"border-box", minWidth:0 },
   btn: (c=T.accent) => ({ padding:"10px 16px", borderRadius:8, border:`1px solid ${c}`, background:c+"20", color:c, cursor:"pointer", fontSize:13, fontFamily:"inherit", fontWeight:700, whiteSpace:"nowrap" }),
@@ -42,9 +42,9 @@ const INIT = {
 // ── SHARED COMPONENTS ─────────────────────────────────────────────────────────
 function StatCard({label,value,color,onClick,active}){
   return(
-    <div onClick={onClick} style={{...S.card,marginBottom:0,borderColor:color+(active?"99":"40"),boxShadow:`0 0 14px ${color}${active?"30":"10"}`,cursor:onClick?"pointer":"default"}}>
-      <div style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",marginBottom:4}}>{label}</div>
-      <div style={{fontSize:20,fontWeight:700,color,lineHeight:1.2}}>{value}</div>
+    <div onClick={onClick} style={{...S.card,marginBottom:0,borderColor:color+(active?"99":"40"),boxShadow:`0 0 14px ${color}${active?"30":"10"}`,cursor:onClick?"pointer":"default",overflow:"hidden",minWidth:0}}>
+      <div style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",marginBottom:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{label}</div>
+      <div style={{fontSize:18,fontWeight:700,color,lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{value}</div>
       {active&&<div style={{fontSize:9,color,letterSpacing:2,marginTop:4}}>● ACTIVE</div>}
     </div>
   );
