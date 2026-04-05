@@ -1286,8 +1286,14 @@ export default function App(){
     });
     // Listen for auth changes
     const {data:{subscription}} = supabase.auth.onAuthStateChange((_event,session)=>{
-      if(session?.user){setUser(session.user);}
-      else{setUser(null);setData(INIT);setLoaded(false);}
+      if(session?.user){
+        setUser(session.user);
+      } else {
+        setUser(null);
+        setData(INIT);
+        setLoaded(false);
+        setAuthChecked(true);
+      }
     });
     return()=>subscription.unsubscribe();
   },[]);
@@ -1317,6 +1323,7 @@ export default function App(){
     setUser(null);
     setData(INIT);
     setLoaded(false);
+    setAuthChecked(true);
     setMenuOpen(false);
   }
 
