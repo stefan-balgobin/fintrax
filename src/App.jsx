@@ -1155,54 +1155,178 @@ const PAGES={overview:Overview,expenses:Expenses,certs:Certifications,personal:P
 
 import { createClient } from "@supabase/supabase-js";
 
-const TEST_MODE = false; // ← set to true to test locally with empty data, false for real Supabase data
+const TEST_MODE = true; // ← set to true to test locally with empty data, false for real app
 
 const SUPABASE_URL = "https://cpsyxvygcmmjxthvbiqd.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_1ilCgCSAMw6tVGTtLemgsw_jOvcrwx8";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { persistSession: false },
-  global: {
-    headers: { apikey: SUPABASE_ANON_KEY }
-  }
+  auth: { persistSession: true, storageKey: "fintrax_auth" },
+  global: { headers: { apikey: SUPABASE_ANON_KEY } }
 });
 
+// Convert username to fake email for Supabase auth
+const toEmail = u => `${u.toLowerCase().replace(/\s+/g,"")}@fintrax.app`;
+
+// ── AUTH SCREEN ───────────────────────────────────────────────────────────────
+function AuthScreen({onAuth}){
+  const [screen,setScreen] = useState("login"); // "login" | "signup"
+  const [username,setUsername] = useState("");
+  const [password,setPassword] = useState("");
+  const [error,setError] = useState("");
+  const [loading,setLoading] = useState(false);
+  const [showPass,setShowPass] = useState(false);
+
+  async function handleLogin(e){
+    e.preventDefault();
+    if(!username||!password){setError("Please enter your username and password.");return;}
+    setLoading(true);setError("");
+    const {data,error:err} = await supabase.auth.signInWithPassword({email:toEmail(username),password});
+    setLoading(false);
+    if(err){setError("Incorrect username or password. Please try again.");return;}
+    onAuth(data.user);
+  }
+
+  async function handleSignup(e){
+    e.preventDefault();
+    if(!username||!password){setError("Please fill in all fields.");return;}
+    if(username.length<3){setError("Username must be at least 3 characters.");return;}
+    if(password.length<6){setError("Password must be at least 6 characters.");return;}
+    setLoading(true);setError("");
+    const {data,error:err} = await supabase.auth.signUp({email:toEmail(username),password,options:{data:{username}}});
+    setLoading(false);
+    if(err){
+      if(err.message.includes("already registered")){setError("That username is already taken. Please choose another.");}
+      else{setError("Something went wrong. Please try again.");}
+      return;
+    }
+    onAuth(data.user);
+  }
+
+  const isLogin = screen==="login";
+  return(
+    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,boxSizing:"border-box",overflowX:"hidden"}}>
+      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+      <style>{`*{box-sizing:border-box;}input:focus{border-color:${T.accent}!important;outline:none;}button:active{opacity:0.7;}`}</style>
+      <div style={{width:"100%",maxWidth:380}}>
+        {/* Logo */}
+        <div style={{textAlign:"center",marginBottom:36}}>
+          <div style={{fontSize:36,color:T.accent,marginBottom:8}}>⬡</div>
+          <div style={{fontSize:22,fontWeight:700,letterSpacing:4,color:T.accent}}>FINTRAX</div>
+          <div style={{fontSize:11,color:T.muted,letterSpacing:2,marginTop:4}}>// PERSONAL FINANCE DASHBOARD</div>
+        </div>
+        {/* Card */}
+        <div style={{background:T.surface,borderRadius:16,padding:28,border:`1px solid ${T.border}`}}>
+          {/* Tab switcher */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:24}}>
+            <button onClick={()=>{setScreen("login");setError("");}} style={{padding:"10px",borderRadius:8,border:`1px solid ${isLogin?T.accent:T.border}`,background:isLogin?T.accentGlow:"none",color:isLogin?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,letterSpacing:1}}>
+              LOG IN
+            </button>
+            <button onClick={()=>{setScreen("signup");setError("");}} style={{padding:"10px",borderRadius:8,border:`1px solid ${!isLogin?T.green:T.border}`,background:!isLogin?T.green+"20":"none",color:!isLogin?T.green:T.muted,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700,letterSpacing:1}}>
+              SIGN UP
+            </button>
+          </div>
+          {/* Form */}
+          <form onSubmit={isLogin?handleLogin:handleSignup}>
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",display:"block",marginBottom:6}}>Username</label>
+              <input
+                style={{width:"100%",background:T.card,border:`1px solid ${T.border}`,borderRadius:8,color:T.text,padding:"12px 14px",fontSize:14,fontFamily:"inherit"}}
+                value={username}
+                onChange={e=>setUsername(e.target.value)}
+                placeholder="Enter your username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="username"
+              />
+            </div>
+            <div style={{marginBottom:20}}>
+              <label style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",display:"block",marginBottom:6}}>Password</label>
+              <div style={{position:"relative"}}>
+                <input
+                  style={{width:"100%",background:T.card,border:`1px solid ${T.border}`,borderRadius:8,color:T.text,padding:"12px 44px 12px 14px",fontSize:14,fontFamily:"inherit"}}
+                  type={showPass?"text":"password"}
+                  value={password}
+                  onChange={e=>setPassword(e.target.value)}
+                  placeholder={isLogin?"Enter your password":"Min. 6 characters"}
+                  autoComplete={isLogin?"current-password":"new-password"}
+                />
+                <button type="button" onClick={()=>setShowPass(s=>!s)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:14,padding:4}}>
+                  {showPass?"🙈":"👁"}
+                </button>
+              </div>
+            </div>
+            {error&&<div style={{background:T.red+"15",border:`1px solid ${T.red}40`,borderRadius:8,padding:"10px 14px",fontSize:12,color:T.red,marginBottom:16,lineHeight:1.5}}>{error}</div>}
+            <button type="submit" disabled={loading} style={{width:"100%",padding:"13px",borderRadius:8,border:"none",background:isLogin?T.accent:T.green,color:"#0a0e1a",cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700,letterSpacing:1,opacity:loading?0.7:1}}>
+              {loading?(isLogin?"Logging in...":"Creating account..."):(isLogin?"LOG IN":"CREATE ACCOUNT")}
+            </button>
+          </form>
+          {!isLogin&&<div style={{fontSize:11,color:T.muted,textAlign:"center",marginTop:16,lineHeight:1.6}}>By signing up you agree to keep your login details safe. Your data is private and only accessible by you.</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function App(){
   const [active,setActive] = useState("overview");
   const [data,setData] = useState(INIT);
   const [menuOpen,setMenuOpen] = useState(false);
   const [syncing,setSyncing] = useState(false);
-  const [loaded,setLoaded] = useState(TEST_MODE); // in test mode skip loading
+  const [loaded,setLoaded] = useState(false);
+  const [user,setUser] = useState(null);
+  const [authChecked,setAuthChecked] = useState(false);
 
-  // Load data from Supabase on first open (skipped in test mode)
+  // Check if user is already logged in on app open
   React.useEffect(()=>{
-    if(TEST_MODE){ setLoaded(true); return; }
-    async function loadData(){
-      try {
-        const {data:rows,error} = await supabase
-          .from("fintrax_data")
-          .select("data")
-          .eq("id","main")
-          .single();
-        if(!error && rows && rows.data && Object.keys(rows.data).length > 0){
-          setData({...INIT,...rows.data});
-        }
-      } catch(e){
-        console.log("Load error:",e);
-      }
-      setLoaded(true);
-    }
-    loadData();
+    if(TEST_MODE){setAuthChecked(true);setLoaded(true);return;}
+    supabase.auth.getSession().then(({data:{session}})=>{
+      if(session?.user){setUser(session.user);loadData(session.user.id);}
+      else{setAuthChecked(true);}
+    });
+    // Listen for auth changes
+    const {data:{subscription}} = supabase.auth.onAuthStateChange((_event,session)=>{
+      if(session?.user){setUser(session.user);}
+      else{setUser(null);setData(INIT);setLoaded(false);}
+    });
+    return()=>subscription.unsubscribe();
   },[]);
 
-  // Save data (skipped in test mode — nothing touches Supabase)
-  const setDataAndSave = (updater) => {
-    setData(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      if(!TEST_MODE){
+  async function loadData(userId){
+    try{
+      const {data:rows,error} = await supabase
+        .from("fintrax_data")
+        .select("data")
+        .eq("user_id",userId)
+        .maybeSingle();
+      if(!error&&rows?.data&&Object.keys(rows.data).length>0){
+        setData({...INIT,...rows.data});
+      }
+    }catch(e){console.log("Load error:",e);}
+    setLoaded(true);
+    setAuthChecked(true);
+  }
+
+  function handleAuth(u){
+    setUser(u);
+    if(u) loadData(u.id);
+  }
+
+  async function handleLogout(){
+    await supabase.auth.signOut();
+    setUser(null);
+    setData(INIT);
+    setLoaded(false);
+    setMenuOpen(false);
+  }
+
+  const setDataAndSave = (updater)=>{
+    setData(prev=>{
+      const next = typeof updater==="function"?updater(prev):updater;
+      if(!TEST_MODE&&user){
         setSyncing(true);
-        supabase
-          .from("fintrax_data")
-          .upsert({id:"main", data:next, updated_at: new Date().toISOString()})
+        supabase.from("fintrax_data")
+          .upsert({user_id:user.id,data:next,updated_at:new Date().toISOString()})
           .then(()=>setSyncing(false))
           .catch(()=>setSyncing(false));
       }
@@ -1211,10 +1335,23 @@ export default function App(){
   };
 
   const Page = PAGES[active];
+  const username = user?.user_metadata?.username||user?.email?.split("@")[0]||"User";
 
+  // Still checking if user is logged in
+  if(!authChecked) return(
+    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
+      <div style={{fontSize:28,color:T.accent}}>⬡</div>
+      <div style={{fontSize:12,color:T.muted,letterSpacing:2}}>FINTRAX</div>
+    </div>
+  );
+
+  // Not logged in — show auth screen
+  if(!TEST_MODE&&!user) return <AuthScreen onAuth={handleAuth}/>;
+
+  // Loading data
   if(!loaded) return(
     <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
-      <div style={{fontSize:24,color:T.accent}}>⬡ FINTRAX</div>
+      <div style={{fontSize:28,color:T.accent}}>⬡</div>
       <div style={{fontSize:12,color:T.muted,letterSpacing:2}}>Loading your data...</div>
     </div>
   );
@@ -1250,13 +1387,21 @@ export default function App(){
       {menuOpen&&(
         <div style={{position:"fixed",top:52,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",zIndex:199}} onClick={()=>setMenuOpen(false)}>
           <div style={{background:T.surface,borderBottom:`1px solid ${T.border}`,padding:16}} onClick={e=>e.stopPropagation()}>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:16}}>
               {NAV.map(n=>(
                 <button key={n.id} onClick={()=>{setActive(n.id);setMenuOpen(false);}} style={{padding:"12px 6px",borderRadius:10,border:`1px solid ${active===n.id?T.accent:T.border}`,background:active===n.id?T.accentGlow:T.card,color:active===n.id?T.accent:T.muted,cursor:"pointer",fontSize:11,fontFamily:"inherit",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
                   <span style={{fontSize:18}}>{n.icon}</span>
                   <span style={{fontSize:10,letterSpacing:1}}>{n.label}</span>
                 </button>
               ))}
+            </div>
+            {/* User info + logout */}
+            <div style={{borderTop:`1px solid ${T.border}`,paddingTop:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div style={{fontSize:10,color:T.muted,letterSpacing:2,marginBottom:2}}>LOGGED IN AS</div>
+                <div style={{fontSize:13,fontWeight:700,color:T.text}}>{username}</div>
+              </div>
+              <button onClick={handleLogout} style={{...S.btn(T.red),padding:"8px 16px",fontSize:12}}>Log Out</button>
             </div>
           </div>
         </div>
