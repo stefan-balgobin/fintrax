@@ -1155,6 +1155,8 @@ const PAGES={overview:Overview,expenses:Expenses,certs:Certifications,personal:P
 
 import { createClient } from "@supabase/supabase-js";
 
+const TEST_MODE = false; // ← set to true to test locally with empty data, false for real Supabase data
+
 const SUPABASE_URL = "https://cpsyxvygcmmjxthvbiqd.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_1ilCgCSAMw6tVGTtLemgsw_jOvcrwx8";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -1169,10 +1171,11 @@ export default function App(){
   const [data,setData] = useState(INIT);
   const [menuOpen,setMenuOpen] = useState(false);
   const [syncing,setSyncing] = useState(false);
-  const [loaded,setLoaded] = useState(false);
+  const [loaded,setLoaded] = useState(TEST_MODE); // in test mode skip loading
 
-  // Load data from Supabase on first open
+  // Load data from Supabase on first open (skipped in test mode)
   React.useEffect(()=>{
+    if(TEST_MODE){ setLoaded(true); return; }
     async function loadData(){
       try {
         const {data:rows,error} = await supabase
@@ -1191,16 +1194,18 @@ export default function App(){
     loadData();
   },[]);
 
-  // Save data to Supabase whenever it changes
+  // Save data (skipped in test mode — nothing touches Supabase)
   const setDataAndSave = (updater) => {
     setData(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
-      setSyncing(true);
-      supabase
-        .from("fintrax_data")
-        .upsert({id:"main", data:next, updated_at: new Date().toISOString()})
-        .then(()=>setSyncing(false))
-        .catch(()=>setSyncing(false));
+      if(!TEST_MODE){
+        setSyncing(true);
+        supabase
+          .from("fintrax_data")
+          .upsert({id:"main", data:next, updated_at: new Date().toISOString()})
+          .then(()=>setSyncing(false))
+          .catch(()=>setSyncing(false));
+      }
       return next;
     });
   };
@@ -1230,7 +1235,10 @@ export default function App(){
       `}</style>
       {/* TOP BAR */}
       <div style={{position:"sticky",top:0,zIndex:200,background:T.surface,borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 16px",height:52}}>
-        <div style={{fontWeight:700,letterSpacing:4,color:T.accent,fontSize:15}}>⬡ FINTRAX</div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{fontWeight:700,letterSpacing:4,color:T.accent,fontSize:15}}>⬡ FINTRAX</div>
+          {TEST_MODE&&<span style={{fontSize:9,background:T.yellow+"20",color:T.yellow,border:`1px solid ${T.yellow}40`,borderRadius:4,padding:"2px 6px",letterSpacing:1,fontWeight:700}}>TEST</span>}
+        </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           {syncing&&<div style={{fontSize:10,color:T.muted,letterSpacing:1}}>saving...</div>}
           <button onClick={()=>setMenuOpen(m=>!m)} style={{background:"none",border:`1px solid ${T.border}`,color:T.accent,fontSize:20,cursor:"pointer",padding:"4px 10px",borderRadius:8,fontFamily:"inherit",lineHeight:1}}>
