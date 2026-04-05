@@ -1164,19 +1164,17 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   global: { headers: { apikey: SUPABASE_ANON_KEY } }
 });
 
-// Convert username to a stable email — trim whitespace, lowercase, remove all spaces
-const toEmail = u => `${u.trim().toLowerCase().replace(/\s+/g,".")}@fintrax.app`;
-
 // ── AUTH SCREEN ───────────────────────────────────────────────────────────────
 function AuthScreen({onAuth}){
   const [screen,setScreen] = useState("login");
   const [username,setUsername] = useState("");
+  const [email,setEmail] = useState("");
   const [password,setPassword] = useState("");
   const [error,setError] = useState("");
   const [loading,setLoading] = useState(false);
   const [showPass,setShowPass] = useState(false);
 
-  function switchScreen(s){ setScreen(s); setError(""); setUsername(""); setPassword(""); }
+  function switchScreen(s){ setScreen(s); setError(""); setUsername(""); setEmail(""); setPassword(""); }
 
   async function handleLogin(e){
     e.preventDefault();
@@ -1184,55 +1182,76 @@ function AuthScreen({onAuth}){
     const p = password;
     if(!u||!p){ setError("Please enter your username and password."); return; }
     setLoading(true); setError("");
-    const {data,error:err} = await supabase.auth.signInWithPassword({
-      email: toEmail(u),
-      password: p,
-    });
-    setLoading(false);
-    if(err){
-      if(err.message.toLowerCase().includes("email not confirmed")){
-        setError("Account not confirmed. Please contact the app owner.");
-      } else {
-        setError("Incorrect username or password. Please try again.");
+    try {
+      // Look up email from username
+      const {data:profile,error:lookupErr} = await supabase
+        .from("user_profiles")
+        .select("email")
+        .eq("username", u)
+        .maybeSingle();
+      if(lookupErr||!profile){
+        setLoading(false);
+        setError("Username not found. Please check your username or sign up.");
+        return;
       }
-      return;
+      // Sign in with the email we found
+      const {data,error:signInErr} = await supabase.auth.signInWithPassword({
+        email: profile.email,
+        password: p,
+      });
+      setLoading(false);
+      if(signInErr){ setError("Incorrect password. Please try again."); return; }
+      onAuth(data.user);
+    } catch(e){
+      setLoading(false);
+      setError("Something went wrong. Please try again.");
     }
-    onAuth(data.user);
   }
 
   async function handleSignup(e){
     e.preventDefault();
     const u = username.trim();
+    const em = email.trim().toLowerCase();
     const p = password;
-    if(!u||!p){ setError("Please fill in all fields."); return; }
+    if(!u||!em||!p){ setError("Please fill in all fields."); return; }
     if(u.length<3){ setError("Username must be at least 3 characters."); return; }
     if(p.length<6){ setError("Password must be at least 6 characters."); return; }
+    if(!em.includes("@")){ setError("Please enter a valid email address."); return; }
     setLoading(true); setError("");
-    const email = toEmail(u);
-    const {data,error:err} = await supabase.auth.signUp({
-      email,
-      password: p,
-      options: { data: { username: u }, emailRedirectTo: null },
-    });
-    setLoading(false);
-    if(err){
-      if(err.message.toLowerCase().includes("already registered")||err.message.toLowerCase().includes("already exists")){
-        setError("That username is already taken. Please choose another.");
-      } else {
-        setError(`Sign up failed: ${err.message}`);
+    try {
+      // Check if username already taken
+      const {data:existing} = await supabase
+        .from("user_profiles")
+        .select("id")
+        .eq("username", u)
+        .maybeSingle();
+      if(existing){ setLoading(false); setError("That username is already taken. Please choose another."); return; }
+      // Create auth account
+      const {data,error:signUpErr} = await supabase.auth.signUp({
+        email: em,
+        password: p,
+        options: { data: { username: u } }
+      });
+      if(signUpErr){
+        setLoading(false);
+        if(signUpErr.message.toLowerCase().includes("already registered")){
+          setError("An account with that email already exists.");
+        } else {
+          setError(`Sign up failed: ${signUpErr.message}`);
+        }
+        return;
       }
-      return;
-    }
-    // If email confirmation is disabled, user is returned immediately
-    if(data?.user && data.user.identities && data.user.identities.length === 0){
-      setError("That username is already taken. Please choose another.");
-      return;
-    }
-    if(data?.user){
+      if(!data?.user){ setLoading(false); setError("Sign up failed. Please try again."); return; }
+      // Save username + email to profiles table
+      const {error:profileErr} = await supabase
+        .from("user_profiles")
+        .insert({ id: data.user.id, username: u, email: em });
+      setLoading(false);
+      if(profileErr){ setError(`Profile save failed: ${profileErr.message}`); return; }
       onAuth(data.user);
-    } else {
-      setError("Account created but could not log in automatically. Please log in manually.");
-      switchScreen("login");
+    } catch(e){
+      setLoading(false);
+      setError("Something went wrong. Please try again.");
     }
   }
 
@@ -1258,6 +1277,12 @@ function AuthScreen({onAuth}){
               <label style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",display:"block",marginBottom:6}}>Username</label>
               <input style={inp} value={username} onChange={e=>setUsername(e.target.value)} placeholder="Enter your username" autoCapitalize="none" autoCorrect="off" autoComplete="username" spellCheck="false"/>
             </div>
+            {!isLogin&&(
+              <div style={{marginBottom:14}}>
+                <label style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",display:"block",marginBottom:6}}>Email</label>
+                <input style={inp} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Enter your email address" autoCapitalize="none" autoCorrect="off" autoComplete="email"/>
+              </div>
+            )}
             <div style={{marginBottom:20}}>
               <label style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",display:"block",marginBottom:6}}>Password</label>
               <div style={{position:"relative"}}>
@@ -1272,7 +1297,7 @@ function AuthScreen({onAuth}){
               {loading?(isLogin?"Logging in...":"Creating account..."):(isLogin?"LOG IN":"CREATE ACCOUNT")}
             </button>
           </form>
-          {!isLogin&&<div style={{fontSize:11,color:T.muted,textAlign:"center",marginTop:14,lineHeight:1.6}}>Your data is private and only accessible by you.</div>}
+          {!isLogin&&<div style={{fontSize:11,color:T.muted,textAlign:"center",marginTop:14,lineHeight:1.6}}>Your email is only used for account recovery. Your data is private and only accessible by you.</div>}
         </div>
       </div>
     </div>
