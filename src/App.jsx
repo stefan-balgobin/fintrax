@@ -1373,6 +1373,9 @@ export default function App(){
   const [bottomExpanded,setBottomExpanded] = useState(false);
   const swipeRef    = React.useRef(null);
   const touchStartX = React.useRef(null);
+  const dataRef     = React.useRef(data);
+  const pendingSave = React.useRef(null);
+  React.useEffect(()=>{ dataRef.current = data; },[data]);
 
   // Compute current theme
   const currentT = darkMode ? DARK : LIGHT;
@@ -1430,23 +1433,23 @@ export default function App(){
   function handleAuth(u){ setUser(u); if(u) loadData(u.id); }
 
   async function handleLogout(){
+    if(pendingSave.current){ await pendingSave.current; pendingSave.current=null; }
     await supabase.auth.signOut();
     setUser(null);setData(INIT);setLoaded(false);setAuthChecked(true);
     setMenuOpen(false);setMenuSection("main");
   }
 
   const setDataAndSave = (updater)=>{
-    setData(prev=>{
-      const next = typeof updater==="function"?updater(prev):updater;
-      if(!TEST_MODE&&user){
-        setSyncing(true);
-        supabase.from("fintrax_data")
-          .upsert({user_id:user.id,data:next,updated_at:new Date().toISOString()},{onConflict:"user_id"})
-          .then(({error})=>{ if(error) console.error("Save error:",error); setSyncing(false); })
-          .catch((e)=>{ console.error("Save error:",e); setSyncing(false); });
-      }
-      return next;
-    });
+    const next = typeof updater==="function"?updater(dataRef.current):updater;
+    dataRef.current = next;
+    setData(next);
+    if(!TEST_MODE&&user){
+      setSyncing(true);
+      pendingSave.current = supabase.from("fintrax_data")
+        .upsert({user_id:user.id,data:next,updated_at:new Date().toISOString()},{onConflict:"user_id"})
+        .then(({error})=>{ if(error) console.error("Save error:",error); setSyncing(false); })
+        .catch((e)=>{ console.error("Save error:",e); setSyncing(false); });
+    }
   };
 
   // Save settings to Supabase when they change
