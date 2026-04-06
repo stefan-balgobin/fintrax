@@ -1331,6 +1331,20 @@ function AuthScreen({onAuth}){
 }
 
 // ── MAIN APP ──────────────────────────────────────────────────────────────────
+// ── BUBBLE TOGGLE ─────────────────────────────────────────────────────────────
+function BubbleToggle({on, onToggle, size="md"}){
+  const T = useT();
+  const sz = size==="sm"?18:22;
+  return(
+    <div onClick={onToggle} style={{display:"inline-flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+      <div style={{width:sz*2.4,height:sz,borderRadius:sz,background:on?T.accent:T.border,position:"relative",transition:"background 0.2s",flexShrink:0}}>
+        <div style={{position:"absolute",top:2,left:on?`calc(100% - ${sz-4}px - 2px)`:2,width:sz-4,height:sz-4,borderRadius:"50%",background:"white",transition:"left 0.2s"}}/>
+      </div>
+      <span style={{fontSize:11,color:on?T.accent:T.muted,fontWeight:700,letterSpacing:1}}>{on?"ENABLED":"DISABLED"}</span>
+    </div>
+  );
+}
+
 const ALL_PAGES = [
   {id:"overview",  label:"Overview",  icon:"◈"},
   {id:"expenses",  label:"Expenses",  icon:"◉"},
@@ -1480,20 +1494,6 @@ export default function App(){
     card: {...S.card, background:T.card, border:`1px solid ${T.border}`},
     input: {...S.input, background:T.surface, border:`1px solid ${T.border}`, color:T.text},
   };
-
-  // Bubble toggle component
-  function BubbleToggle({on, onToggle, size="md"}){
-  const T = useT(); const S = useS();
-    const sz = size==="sm"?18:22;
-    return(
-      <div onClick={onToggle} style={{display:"inline-flex",alignItems:"center",gap:8,cursor:"pointer"}}>
-        <div style={{width:sz*2.4,height:sz,borderRadius:sz,background:on?T.accent:T.border,position:"relative",transition:"background 0.2s",flexShrink:0}}>
-          <div style={{position:"absolute",top:2,left:on?`calc(100% - ${sz-4}px - 2px)`:2,width:sz-4,height:sz-4,borderRadius:"50%",background:"white",transition:"left 0.2s"}}/>
-        </div>
-        <span style={{fontSize:11,color:on?T.accent:T.muted,fontWeight:700,letterSpacing:1}}>{on?"ENABLED":"DISABLED"}</span>
-      </div>
-    );
-  }
 
   // Bottom nav — first 5 visible pages + More button
   const bottomPages = visiblePages.slice(0,5);
