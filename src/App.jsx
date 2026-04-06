@@ -336,7 +336,7 @@ function Certifications({data,setData}){
   const T = useT(); const S = useS();
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
-  const [yearFilter,setYearFilter] = useState(String(CY));
+  const [yearFilter,setYearFilter] = useState("All");
   const [search,setSearch] = useState("");
   const [collapsed,setCollapsed] = useState(false);
   const [cardFilter,setCardFilter] = useState("All");
@@ -353,7 +353,7 @@ function Certifications({data,setData}){
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
         <div style={{fontSize:18,fontWeight:700,letterSpacing:2}}>CERTIFICATIONS</div>
-        <button style={{...S.btn(T.green),padding:"8px 14px"}} onClick={()=>{setForm({name:"",issued:"",expiry:"",validYears:"",costTTD:"",costUSD:"",files:[]});setModal("add");}}>+ Add</button>
+        <button style={{...S.btn(T.green),padding:"8px 14px"}} onClick={()=>{setForm({name:"",issued:"",expiry:"",costTTD:"",costUSD:"",files:[]});setModal("add");}}>+ Add</button>
       </div>
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// PROFESSIONAL CERTIFICATIONS</div>
       <SearchBar value={search} onChange={setSearch} placeholder="Search certifications..."/>
@@ -408,7 +408,6 @@ function Certifications({data,setData}){
             <Field label="Issued"><input style={S.input} type="date" value={form.issued||""} onChange={e=>upd("issued",e.target.value)}/></Field>
             <Field label="Expiry"><input style={S.input} type="date" value={form.expiry||""} onChange={e=>upd("expiry",e.target.value)}/></Field>
           </G2>
-          <Field label="Valid (years)"><input style={S.input} type="number" value={form.validYears||""} onChange={e=>upd("validYears",e.target.value)}/></Field>
           <G2>
             <Field label="Cost TTD"><input style={S.input} type="number" value={form.costTTD||""} onChange={e=>upd("costTTD",e.target.value)}/></Field>
             <Field label="Cost USD"><input style={S.input} type="number" value={form.costUSD||""} onChange={e=>upd("costUSD",e.target.value)}/></Field>
