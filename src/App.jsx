@@ -1455,7 +1455,7 @@ export default function App(){
   // Save settings to Supabase when they change
   function saveSettings(dm, ep){
     if(!TEST_MODE&&user){
-      const settingsData = {...data,__darkMode:dm,__enabledPages:ep};
+      const settingsData = {...dataRef.current,__darkMode:dm,__enabledPages:ep};
       supabase.from("fintrax_data")
         .upsert({user_id:user.id,data:settingsData,updated_at:new Date().toISOString()},{onConflict:"user_id"})
         .catch((e)=>console.error("Settings save error:",e));
