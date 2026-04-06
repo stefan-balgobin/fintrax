@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useContext, createContext } from "react";
 
 // ── THEME ─────────────────────────────────────────────────────────────────────
 const DARK = {
@@ -11,7 +11,13 @@ const LIGHT = {
   accent:"#0284c7", accentGlow:"rgba(2,132,199,0.10)", green:"#059669",
   red:"#dc2626", yellow:"#d97706", purple:"#7c3aed", text:"#1e293b", muted:"#64748b",
 };
-// T is set dynamically in App — components receive it via prop or use the global
+
+// Theme context — all components read T from here
+const ThemeCtx = createContext(DARK);
+const useT = () => useContext(ThemeCtx);
+
+// T is a module-level reference updated before each render pass
+// Components that are not hooks use useT() instead
 let T = DARK;
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -24,15 +30,18 @@ const urgencyColor = tl => (!tl||tl==="Expired") ? T.red : !tl.includes("y") ? T
 const expiryYear = s => s ? new Date(s).getFullYear() : null;
 const logYear = s => s && s!=="-" ? new Date(s).getFullYear() : null;
 
-// ── STYLES ────────────────────────────────────────────────────────────────────
-const S = {
+// ── STYLES — functions so they always use the current T ───────────────────────
+// S() returns a fresh styles object using whatever T is at call time
+const getS = () => ({
   card: { background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 16px", marginBottom:12, width:"100%", boxSizing:"border-box", overflow:"hidden", minWidth:0 },
   label: { fontSize:10, letterSpacing:2, color:T.muted, textTransform:"uppercase", marginBottom:6, display:"block" },
   input: { width:"100%", background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, color:T.text, padding:"10px 12px", fontSize:14, fontFamily:"inherit", boxSizing:"border-box", minWidth:0 },
   btn: (c=T.accent) => ({ padding:"10px 16px", borderRadius:8, border:`1px solid ${c}`, background:c+"20", color:c, cursor:"pointer", fontSize:13, fontFamily:"inherit", fontWeight:700, whiteSpace:"nowrap" }),
   badge: c => ({ display:"inline-block", padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:c+"20", color:c, border:`1px solid ${c}40`, whiteSpace:"nowrap" }),
   outlineBtn: (active, c=T.accent) => ({ background:"none", border:`1px solid ${active?c:T.border}`, borderRadius:6, color:active?c:T.muted, fontSize:12, fontFamily:"inherit", padding:"6px 14px", cursor:"pointer", fontWeight:600 }),
-};
+});
+// S is a proxy that always returns fresh values
+const S = new Proxy({}, { get: (_,k) => getS()[k] });
 
 // ── INITIAL DATA ──────────────────────────────────────────────────────────────
 const INIT = {
@@ -1316,35 +1325,37 @@ const PAGE_COMPONENTS = {overview:Overview,expenses:Expenses,certs:Certification
 const DEFAULT_ENABLED = {overview:true,expenses:true,certs:true,personal:true,subscriptions:true,car:true,leisure:true,investments:true};
 
 export default function App(){
-  const [active,setActive]         = useState("overview");
-  const [data,setData]             = useState(INIT);
-  const [menuOpen,setMenuOpen]     = useState(false);
-  const [menuSection,setMenuSection] = useState("main"); // "main"|"profile"|"settings"
-  const [syncing,setSyncing]       = useState(false);
-  const [loaded,setLoaded]         = useState(false);
-  const [user,setUser]             = useState(null);
+  const [active,setActive]           = useState("overview");
+  const [data,setData]               = useState(INIT);
+  const [menuOpen,setMenuOpen]       = useState(false);
+  const [menuSection,setMenuSection] = useState("main");
+  const [syncing,setSyncing]         = useState(false);
+  const [loaded,setLoaded]           = useState(false);
+  const [user,setUser]               = useState(null);
   const [authChecked,setAuthChecked] = useState(false);
-  const [darkMode,setDarkMode]     = useState(true);
+  const [darkMode,setDarkMode]       = useState(true);
   const [enabledPages,setEnabledPages] = useState(DEFAULT_ENABLED);
   const [bottomExpanded,setBottomExpanded] = useState(false);
+  const swipeRef    = React.useRef(null);
+  const touchStartX = React.useRef(null);
 
-  // Apply theme globally based on darkMode
+  // Apply theme globally BEFORE any JSX is evaluated this render
   T = darkMode ? DARK : LIGHT;
 
-  // Swipe handling
-  const swipeRef = React.useRef(null);
-  const touchStartX = React.useRef(null);
+  const username = user?.user_metadata?.username||user?.email?.split("@")[0]||"User";
+  const visiblePages = ALL_PAGES.filter(p => enabledPages[p.id]);
+  const Page = PAGE_COMPONENTS[active] || Overview;
 
   function onTouchStart(e){ touchStartX.current = e.touches[0].clientX; }
   function onTouchEnd(e){
-    if(touchStartX.current === null) return;
+    if(touchStartX.current===null) return;
     const diff = e.changedTouches[0].clientX - touchStartX.current;
     touchStartX.current = null;
-    if(Math.abs(diff) < 60) return; // minimum swipe distance
-    const visiblePages = ALL_PAGES.filter(p => enabledPages[p.id]);
-    const idx = visiblePages.findIndex(p => p.id === active);
-    if(diff < 0 && idx < visiblePages.length - 1) setActive(visiblePages[idx+1].id);
-    if(diff > 0 && idx > 0) setActive(visiblePages[idx-1].id);
+    if(Math.abs(diff)<60) return;
+    const vp = ALL_PAGES.filter(p=>enabledPages[p.id]);
+    const idx = vp.findIndex(p=>p.id===active);
+    if(diff<0&&idx<vp.length-1) setActive(vp[idx+1].id);
+    if(diff>0&&idx>0) setActive(vp[idx-1].id);
   }
 
   // Check if user is already logged in on app open
@@ -1468,6 +1479,7 @@ export default function App(){
   const extraPages = visiblePages.slice(5);
 
   return(
+    <ThemeCtx.Provider value={T}>
     <div ref={swipeRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
       style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",fontSize:14,overflowX:"hidden",width:"100%"}}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
@@ -1616,5 +1628,6 @@ export default function App(){
         )}
       </div>
     </div>
+    </ThemeCtx.Provider>
   );
 }
