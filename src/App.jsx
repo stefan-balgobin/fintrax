@@ -205,7 +205,7 @@ function Overview({data}){
   const personalExp = data.expenses.filter(e=>e.name==="Personal Expense").reduce((s,e)=>s+Number(e.amount||0),0);
   const totalCYExp = fixedExp+subTotal+certTotal+carTotal+leisureTotal+personalExp;
   const totalInv = data.investments.reduce((s,r)=>s+Number(r.value||0),0);
-  const alerts = [...data.certs.map(c=>({name:c.name,expiry:c.expiry})),...data.personalDocs.map(d=>({name:d.type,expiry:d.expiry}))].filter(d=>urgencyColor(timeLeft(d.expiry))!==T.green);
+  const alerts = [...data.certs.map(c=>({name:c.name,expiry:c.expiry})),...data.personalDocs.map(d=>({name:d.type,expiry:d.expiry}))].filter(d=>urgencyColor(timeLeft(d.expiry),T)!==T.green);
   const liveExp = data.expenses.map(e=>{
     if(e.name==="Subscriptions") return {...e,amount:subTotal};
     if(e.name==="Certifications") return {...e,amount:certTotal};
@@ -229,7 +229,7 @@ function Overview({data}){
           {alerts.map((d,i)=>(
             <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${T.border}20`}}>
               <span style={{fontSize:13,flex:1,paddingRight:8}}>{d.name}</span>
-              <span style={S.badge(urgencyColor(timeLeft(d.expiry)))}>{timeLeft(d.expiry)}</span>
+              <span style={S.badge(urgencyColor(timeLeft(d.expiry),T))}>{timeLeft(d.expiry)}</span>
             </div>
           ))}
         </div>
@@ -377,7 +377,7 @@ function Certifications({data,setData}){
       {!collapsed&&(
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {shown.length===0&&<div style={{...S.card,textAlign:"center",color:T.muted}}>No certifications match.</div>}
-          {shown.map(c=>{const tl=timeLeft(c.expiry),uc=urgencyColor(tl);return(
+          {shown.map(c=>{const tl=timeLeft(c.expiry),uc=urgencyColor(tl,T);return(
             <div key={c.id} style={{...S.card,borderColor:uc+"40"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:8}}>
                 <div style={{fontWeight:700,fontSize:14,color:T.text,flex:1}}>{c.name}</div>
@@ -456,7 +456,7 @@ function PersonalDocs({data,setData}){
       {!collapsed&&(
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {shown.length===0&&<div style={{...S.card,textAlign:"center",color:T.muted}}>No documents match.</div>}
-          {shown.map(d=>{const tl=timeLeft(d.expiry),uc=urgencyColor(tl);return(
+          {shown.map(d=>{const tl=timeLeft(d.expiry),uc=urgencyColor(tl,T);return(
             <div key={d.id} style={{...S.card,borderColor:uc+"40"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:8}}>
                 <div style={{fontWeight:700,fontSize:14,flex:1}}>{d.type}</div>
@@ -532,7 +532,7 @@ function Subscriptions({data,setData}){
               <div key={sub.id} style={{...S.card,borderColor:T.accent+"30"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}}>
                   <div style={{fontWeight:700,fontSize:14,flex:1}}>{sub.service}</div>
-                  <span style={{...S.badge(urgencyColor(tl)),flexShrink:0}}>{tl}</span>
+                  <span style={{...S.badge(urgencyColor(tl,T)),flexShrink:0}}>{tl}</span>
                 </div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                   <span style={S.badge(T.purple)}>{sub.type}</span>
@@ -1377,10 +1377,6 @@ export default function App(){
   // Compute current theme
   const currentT = darkMode ? DARK : LIGHT;
 
-  const username = user?.user_metadata?.username||user?.email?.split("@")[0]||"User";
-  const visiblePages = ALL_PAGES.filter(p => enabledPages[p.id]);
-  const Page = PAGE_COMPONENTS[active] || Overview;
-
   function onTouchStart(e){ touchStartX.current = e.touches[0].clientX; }
   function onTouchEnd(e){
     if(touchStartX.current===null) return;
@@ -1445,25 +1441,22 @@ export default function App(){
   // Save settings to Supabase when they change
   function saveSettings(dm, ep){
     if(!TEST_MODE&&user){
-      setData(prev=>{
-        const next = {...prev,__darkMode:dm,__enabledPages:ep};
-        supabase.from("fintrax_data")
-          .upsert({user_id:user.id,data:next,updated_at:new Date().toISOString()})
-          .catch(()=>{});
-        return next;
-      });
+      // Save settings as part of data without triggering a full setData re-render loop
+      const settingsData = {...data,__darkMode:dm,__enabledPages:ep};
+      supabase.from("fintrax_data")
+        .upsert({user_id:user.id,data:settingsData,updated_at:new Date().toISOString()})
+        .catch(()=>{});
     }
   }
 
   function toggleDark(){
     const nd = !darkMode;
     setDarkMode(nd);
-    T = nd ? DARK : LIGHT;
     saveSettings(nd, enabledPages);
   }
 
   function togglePage(id){
-    if(id==="overview") return; // overview always enabled
+    if(id==="overview") return;
     const ne = {...enabledPages,[id]:!enabledPages[id]};
     setEnabledPages(ne);
     if(!ne[active]) setActive("overview");
