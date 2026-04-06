@@ -16,9 +16,9 @@ const LIGHT = {
 const ThemeCtx = createContext(DARK);
 const useT = () => useContext(ThemeCtx);
 
-// T is a module-level reference updated before each render pass
-// Components that are not hooks use useT() instead
-let T = DARK;
+// T is only used as a fallback for the AuthScreen which renders before ThemeCtx
+// All other components get T from useT()
+const T = DARK;
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 const fmt = n => n == null || n === "" ? "—" : `$${Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
@@ -26,13 +26,12 @@ const nextId = arr => arr.length ? Math.max(...arr.map(x => x.id)) + 1 : 1;
 const CY = new Date().getFullYear();
 const fmtDate = str => { if(!str||str==="—") return "—"; const d=new Date(str); return isNaN(d)?str:d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}); };
 const timeLeft = exp => { if(!exp) return "—"; const diff=new Date(exp)-new Date(); if(diff<0) return "Expired"; const days=Math.floor(diff/86400000),y=Math.floor(days/365),m=Math.floor((days%365)/30),d=days%30; if(y>0) return `${y}y ${m}m ${d}d`; if(m>0) return `${m}m ${d}d`; return `${d}d`; };
-const urgencyColor = tl => (!tl||tl==="Expired") ? T.red : !tl.includes("y") ? T.yellow : T.green;
+const urgencyColor = (tl, t=T) => (!tl||tl==="Expired") ? t.red : !tl.includes("y") ? t.yellow : t.green;
 const expiryYear = s => s ? new Date(s).getFullYear() : null;
 const logYear = s => s && s!=="-" ? new Date(s).getFullYear() : null;
 
-// ── STYLES — functions so they always use the current T ───────────────────────
-// S() returns a fresh styles object using whatever T is at call time
-const getS = () => ({
+// ── STYLES — generated fresh from current theme T ─────────────────────────────
+const mkS = (T) => ({
   card: { background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 16px", marginBottom:12, width:"100%", boxSizing:"border-box", overflow:"hidden", minWidth:0 },
   label: { fontSize:10, letterSpacing:2, color:T.muted, textTransform:"uppercase", marginBottom:6, display:"block" },
   input: { width:"100%", background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, color:T.text, padding:"10px 12px", fontSize:14, fontFamily:"inherit", boxSizing:"border-box", minWidth:0 },
@@ -40,8 +39,10 @@ const getS = () => ({
   badge: c => ({ display:"inline-block", padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:700, background:c+"20", color:c, border:`1px solid ${c}40`, whiteSpace:"nowrap" }),
   outlineBtn: (active, c=T.accent) => ({ background:"none", border:`1px solid ${active?c:T.border}`, borderRadius:6, color:active?c:T.muted, fontSize:12, fontFamily:"inherit", padding:"6px 14px", cursor:"pointer", fontWeight:600 }),
 });
-// S is a proxy that always returns fresh values
-const S = new Proxy({}, { get: (_,k) => getS()[k] });
+// Static fallback S for AuthScreen (renders before ThemeCtx)
+const S = mkS(DARK);
+// Hook for all other components to get live theme-aware styles
+const useS = () => mkS(useContext(ThemeCtx));
 
 // ── INITIAL DATA ──────────────────────────────────────────────────────────────
 const INIT = {
@@ -57,6 +58,7 @@ const INIT = {
 
 // ── SHARED COMPONENTS ─────────────────────────────────────────────────────────
 function StatCard({label,value,color,onClick,active}){
+  const T = useT(); const S = useS();
   return(
     <div onClick={onClick} style={{...S.card,marginBottom:0,borderColor:color+(active?"99":"40"),boxShadow:`0 0 14px ${color}${active?"30":"10"}`,cursor:onClick?"pointer":"default",overflow:"hidden",minWidth:0}}>
       <div style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",marginBottom:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{label}</div>
@@ -67,6 +69,7 @@ function StatCard({label,value,color,onClick,active}){
 }
 
 function Modal({title,onClose,children}){
+  const T = useT(); const S = useS();
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
       <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:600,maxHeight:"92vh",overflowY:"auto"}}>
@@ -81,6 +84,7 @@ function Modal({title,onClose,children}){
 }
 
 function ConfirmDelete({label,onCancel,onConfirm}){
+  const T = useT(); const S = useS();
   return(
     <Modal title="Confirm Delete" onClose={onCancel}>
       <div style={{fontSize:14,color:T.text,marginBottom:20,lineHeight:1.6}}>Delete <span style={{color:T.red,fontWeight:700}}>{label}</span>?<br/><span style={{color:T.muted,fontSize:12}}>This cannot be undone.</span></div>
@@ -92,9 +96,11 @@ function ConfirmDelete({label,onCancel,onConfirm}){
   );
 }
 
-function Field({label,children}){return <div style={{marginBottom:14}}><label style={S.label}>{label}</label>{children}</div>;}
+function Field({label,children}){
+  const T = useT(); const S = useS();return <div style={{marginBottom:14}}><label style={S.label}>{label}</label>{children}</div>;}
 function G2({children}){return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))",gap:10}}>{children}</div>;}
 function SaveCancel({onCancel,onSave}){
+  const T = useT(); const S = useS();
   return(
     <div style={{display:"flex",gap:10,marginTop:16}}>
       <button style={{...S.btn(T.muted),flex:1}} onClick={onCancel}>Cancel</button>
@@ -104,6 +110,7 @@ function SaveCancel({onCancel,onSave}){
 }
 
 function ItemActions({label,onEdit,onDelete}){
+  const T = useT(); const S = useS();
   const [open,setOpen] = useState(false);
   const [conf,setConf] = useState(false);
   return(
@@ -121,10 +128,12 @@ function ItemActions({label,onEdit,onDelete}){
 }
 
 function SearchBar({value,onChange,placeholder}){
+  const T = useT(); const S = useS();
   return <input style={{...S.input,marginBottom:14}} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder||"Search..."}/>;
 }
 
 function ListToggle({collapsed,onToggle,count,label}){
+  const T = useT(); const S = useS();
   return(
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
       <div style={{fontSize:11,letterSpacing:2,color:T.accent,textTransform:"uppercase",fontWeight:700}}>{label}</div>
@@ -134,6 +143,7 @@ function ListToggle({collapsed,onToggle,count,label}){
 }
 
 function FilesSection({files,onUpload,onDownload,onRemove}){
+  const T = useT(); const S = useS();
   const [open,setOpen] = useState(false);
   const list = files||[];
   return(
@@ -179,6 +189,7 @@ function useFiles(key,setData){
 
 // ── OVERVIEW ──────────────────────────────────────────────────────────────────
 function Overview({data}){
+  const T = useT(); const S = useS();
   const subTotal = data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?Number(sub.amount||0):Number(sub.amount||0)*12),0);
   const certTotal = data.certs.filter(c=>expiryYear(c.expiry)===CY).reduce((s,c)=>s+Number(c.costTTD||0),0);
   const carTotal = data.carLog.filter(r=>logYear(r.date)===CY).reduce((s,r)=>s+Number(r.cost||0),0);
@@ -243,6 +254,7 @@ function Overview({data}){
 
 // ── EXPENSES ──────────────────────────────────────────────────────────────────
 function Expenses({data,setData}){
+  const T = useT(); const S = useS();
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
   const [search,setSearch] = useState("");
@@ -321,6 +333,7 @@ function Expenses({data,setData}){
 
 // ── CERTIFICATIONS ────────────────────────────────────────────────────────────
 function Certifications({data,setData}){
+  const T = useT(); const S = useS();
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
   const [yearFilter,setYearFilter] = useState(String(CY));
@@ -409,6 +422,7 @@ function Certifications({data,setData}){
 
 // ── PERSONAL DOCS ─────────────────────────────────────────────────────────────
 function PersonalDocs({data,setData}){
+  const T = useT(); const S = useS();
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
   const [search,setSearch] = useState("");
@@ -478,6 +492,7 @@ function PersonalDocs({data,setData}){
 
 // ── SUBSCRIPTIONS ─────────────────────────────────────────────────────────────
 function Subscriptions({data,setData}){
+  const T = useT(); const S = useS();
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
   const [search,setSearch] = useState("");
@@ -592,6 +607,7 @@ function Subscriptions({data,setData}){
 
 // ── CAR MAINTENANCE ───────────────────────────────────────────────────────────
 function CarMaintenance({data,setData}){
+  const T = useT(); const S = useS();
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
   const [search,setSearch] = useState("");
@@ -759,6 +775,7 @@ function CarMaintenance({data,setData}){
 
 // ── LEISURE — LegCard (top-level) ─────────────────────────────────────────────
 function LegCard({leg,onEdit,onDelete}){
+  const T = useT(); const S = useS();
   const typeColors = {"One Way":T.yellow,"Round Trip":T.accent,"Multi-City":T.purple};
   const tc = typeColors[leg.flightType]||T.muted;
   const segs = leg.segments||[];
@@ -818,6 +835,7 @@ function LegCard({leg,onEdit,onDelete}){
 }
 
 function FlightModal({initial,onSave,onClose}){
+  const T = useT(); const S = useS();
   const blank = {flightType:"One Way",from:"",to:"",departDate:"",departTime:"",arriveDate:"",arriveTime:"",returnDate:"",returnTime:"",returnArriveDate:"",returnArriveTime:"",flightCost:"",airline:"",flightNo:"",segments:[]};
   const [f,setF] = useState(initial?{...blank,...initial}:blank);
   const upd = (k,v)=>setF(p=>({...p,[k]:v}));
@@ -887,6 +905,7 @@ function FlightModal({initial,onSave,onClose}){
 
 // ── TRIP DETAIL ───────────────────────────────────────────────────────────────
 function TripDetail({trip,onBack,onSave}){
+  const T = useT(); const S = useS();
   const [form,setForm] = useState({...trip,legs:trip.legs||[],accommodations:trip.accommodations||[],files:trip.files||[]});
   const [fModal,setFModal] = useState(null);
   const [aModal,setAModal] = useState(null);
@@ -1008,6 +1027,7 @@ function TripDetail({trip,onBack,onSave}){
 
 // ── LEISURE MAIN ──────────────────────────────────────────────────────────────
 function Leisure({data,setData}){
+  const T = useT(); const S = useS();
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
   const [search,setSearch] = useState("");
@@ -1081,6 +1101,7 @@ function Leisure({data,setData}){
 
 // ── INVESTMENTS ───────────────────────────────────────────────────────────────
 function Investments({data,setData}){
+  const T = useT(); const S = useS();
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
   const [search,setSearch] = useState("");
@@ -1339,8 +1360,8 @@ export default function App(){
   const swipeRef    = React.useRef(null);
   const touchStartX = React.useRef(null);
 
-  // Apply theme globally BEFORE any JSX is evaluated this render
-  T = darkMode ? DARK : LIGHT;
+  // Compute current theme
+  const currentT = darkMode ? DARK : LIGHT;
 
   const username = user?.user_metadata?.username||user?.email?.split("@")[0]||"User";
   const visiblePages = ALL_PAGES.filter(p => enabledPages[p.id]);
@@ -1462,6 +1483,7 @@ export default function App(){
 
   // Bubble toggle component
   function BubbleToggle({on, onToggle, size="md"}){
+  const T = useT(); const S = useS();
     const sz = size==="sm"?18:22;
     return(
       <div onClick={onToggle} style={{display:"inline-flex",alignItems:"center",gap:8,cursor:"pointer"}}>
@@ -1479,7 +1501,7 @@ export default function App(){
   const extraPages = visiblePages.slice(5);
 
   return(
-    <ThemeCtx.Provider value={T}>
+    <ThemeCtx.Provider value={currentT}>
     <div ref={swipeRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
       style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",fontSize:14,overflowX:"hidden",width:"100%"}}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
