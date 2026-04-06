@@ -1414,14 +1414,16 @@ export default function App(){
   async function loadData(userId){
     try{
       const {data:rows,error} = await supabase
-        .from("fintrax_data").select("data").eq("user_id",userId).maybeSingle();
-      if(!error&&rows?.data&&Object.keys(rows.data).length>0){
+        .from("fintrax_data").select("data").eq("user_id",userId)
+        .order("updated_at",{ascending:false}).limit(1).maybeSingle();
+      if(error){ console.error("Load error:",error); }
+      else if(rows?.data&&Object.keys(rows.data).length>0){
         const saved = rows.data;
         setData({...INIT,...saved});
         if(saved.__darkMode !== undefined) setDarkMode(saved.__darkMode);
         if(saved.__enabledPages) setEnabledPages({...DEFAULT_ENABLED,...saved.__enabledPages});
       }
-    }catch(e){console.log("Load error:",e);}
+    }catch(e){console.error("Load error:",e);}
     setLoaded(true);setAuthChecked(true);
   }
 
@@ -1439,8 +1441,9 @@ export default function App(){
       if(!TEST_MODE&&user){
         setSyncing(true);
         supabase.from("fintrax_data")
-          .upsert({user_id:user.id,data:next,updated_at:new Date().toISOString()})
-          .then(()=>setSyncing(false)).catch(()=>setSyncing(false));
+          .upsert({user_id:user.id,data:next,updated_at:new Date().toISOString()},{onConflict:"user_id"})
+          .then(({error})=>{ if(error) console.error("Save error:",error); setSyncing(false); })
+          .catch((e)=>{ console.error("Save error:",e); setSyncing(false); });
       }
       return next;
     });
@@ -1449,11 +1452,10 @@ export default function App(){
   // Save settings to Supabase when they change
   function saveSettings(dm, ep){
     if(!TEST_MODE&&user){
-      // Save settings as part of data without triggering a full setData re-render loop
       const settingsData = {...data,__darkMode:dm,__enabledPages:ep};
       supabase.from("fintrax_data")
-        .upsert({user_id:user.id,data:settingsData,updated_at:new Date().toISOString()})
-        .catch(()=>{});
+        .upsert({user_id:user.id,data:settingsData,updated_at:new Date().toISOString()},{onConflict:"user_id"})
+        .catch((e)=>console.error("Settings save error:",e));
     }
   }
 
