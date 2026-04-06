@@ -1,11 +1,18 @@
 import React, { useState } from "react";
 
 // ── THEME ─────────────────────────────────────────────────────────────────────
-const T = {
+const DARK = {
   bg:"#0a0e1a", surface:"#111827", card:"#1a2235", border:"#1e2d45",
   accent:"#00d4ff", accentGlow:"rgba(0,212,255,0.12)", green:"#00e5a0",
   red:"#ff4d6d", yellow:"#ffd166", purple:"#a78bfa", text:"#e2e8f0", muted:"#64748b",
 };
+const LIGHT = {
+  bg:"#f0f4f8", surface:"#ffffff", card:"#e8eef5", border:"#cbd5e1",
+  accent:"#0284c7", accentGlow:"rgba(2,132,199,0.10)", green:"#059669",
+  red:"#dc2626", yellow:"#d97706", purple:"#7c3aed", text:"#1e293b", muted:"#64748b",
+};
+// T is set dynamically in App — components receive it via prop or use the global
+let T = DARK;
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 const fmt = n => n == null || n === "" ? "—" : `$${Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
@@ -1141,17 +1148,6 @@ function Investments({data,setData}){
 }
 
 // ── NAV + APP SHELL ───────────────────────────────────────────────────────────
-const NAV=[
-  {id:"overview",label:"Overview",icon:"◈"},
-  {id:"expenses",label:"Expenses",icon:"◉"},
-  {id:"certs",label:"Certs",icon:"◎"},
-  {id:"personal",label:"Docs",icon:"◫"},
-  {id:"subscriptions",label:"Subs",icon:"◌"},
-  {id:"car",label:"Car",icon:"◧"},
-  {id:"leisure",label:"Leisure",icon:"◑"},
-  {id:"investments",label:"Invest",icon:"◐"},
-];
-const PAGES={overview:Overview,expenses:Expenses,certs:Certifications,personal:PersonalDocs,subscriptions:Subscriptions,car:CarMaintenance,leisure:Leisure,investments:Investments};
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -1305,14 +1301,51 @@ function AuthScreen({onAuth}){
 }
 
 // ── MAIN APP ──────────────────────────────────────────────────────────────────
+const ALL_PAGES = [
+  {id:"overview",  label:"Overview",  icon:"◈"},
+  {id:"expenses",  label:"Expenses",  icon:"◉"},
+  {id:"certs",     label:"Certs",     icon:"◎"},
+  {id:"personal",  label:"Docs",      icon:"◫"},
+  {id:"subscriptions",label:"Subs",   icon:"◌"},
+  {id:"car",       label:"Car",       icon:"◧"},
+  {id:"leisure",   label:"Leisure",   icon:"◑"},
+  {id:"investments",label:"Invest",   icon:"◐"},
+];
+const PAGE_COMPONENTS = {overview:Overview,expenses:Expenses,certs:Certifications,personal:PersonalDocs,subscriptions:Subscriptions,car:CarMaintenance,leisure:Leisure,investments:Investments};
+
+const DEFAULT_ENABLED = {overview:true,expenses:true,certs:true,personal:true,subscriptions:true,car:true,leisure:true,investments:true};
+
 export default function App(){
-  const [active,setActive] = useState("overview");
-  const [data,setData] = useState(INIT);
-  const [menuOpen,setMenuOpen] = useState(false);
-  const [syncing,setSyncing] = useState(false);
-  const [loaded,setLoaded] = useState(false);
-  const [user,setUser] = useState(null);
+  const [active,setActive]         = useState("overview");
+  const [data,setData]             = useState(INIT);
+  const [menuOpen,setMenuOpen]     = useState(false);
+  const [menuSection,setMenuSection] = useState("main"); // "main"|"profile"|"settings"
+  const [syncing,setSyncing]       = useState(false);
+  const [loaded,setLoaded]         = useState(false);
+  const [user,setUser]             = useState(null);
   const [authChecked,setAuthChecked] = useState(false);
+  const [darkMode,setDarkMode]     = useState(true);
+  const [enabledPages,setEnabledPages] = useState(DEFAULT_ENABLED);
+  const [bottomExpanded,setBottomExpanded] = useState(false);
+
+  // Apply theme globally based on darkMode
+  T = darkMode ? DARK : LIGHT;
+
+  // Swipe handling
+  const swipeRef = React.useRef(null);
+  const touchStartX = React.useRef(null);
+
+  function onTouchStart(e){ touchStartX.current = e.touches[0].clientX; }
+  function onTouchEnd(e){
+    if(touchStartX.current === null) return;
+    const diff = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    if(Math.abs(diff) < 60) return; // minimum swipe distance
+    const visiblePages = ALL_PAGES.filter(p => enabledPages[p.id]);
+    const idx = visiblePages.findIndex(p => p.id === active);
+    if(diff < 0 && idx < visiblePages.length - 1) setActive(visiblePages[idx+1].id);
+    if(diff > 0 && idx > 0) setActive(visiblePages[idx-1].id);
+  }
 
   // Check if user is already logged in on app open
   React.useEffect(()=>{
@@ -1321,16 +1354,9 @@ export default function App(){
       if(session?.user){setUser(session.user);loadData(session.user.id);}
       else{setAuthChecked(true);}
     });
-    // Listen for auth changes
     const {data:{subscription}} = supabase.auth.onAuthStateChange((_event,session)=>{
-      if(session?.user){
-        setUser(session.user);
-      } else {
-        setUser(null);
-        setData(INIT);
-        setLoaded(false);
-        setAuthChecked(true);
-      }
+      if(session?.user){ setUser(session.user); }
+      else { setUser(null);setData(INIT);setLoaded(false);setAuthChecked(true); }
     });
     return()=>subscription.unsubscribe();
   },[]);
@@ -1338,30 +1364,23 @@ export default function App(){
   async function loadData(userId){
     try{
       const {data:rows,error} = await supabase
-        .from("fintrax_data")
-        .select("data")
-        .eq("user_id",userId)
-        .maybeSingle();
+        .from("fintrax_data").select("data").eq("user_id",userId).maybeSingle();
       if(!error&&rows?.data&&Object.keys(rows.data).length>0){
-        setData({...INIT,...rows.data});
+        const saved = rows.data;
+        setData({...INIT,...saved});
+        if(saved.__darkMode !== undefined) setDarkMode(saved.__darkMode);
+        if(saved.__enabledPages) setEnabledPages({...DEFAULT_ENABLED,...saved.__enabledPages});
       }
     }catch(e){console.log("Load error:",e);}
-    setLoaded(true);
-    setAuthChecked(true);
+    setLoaded(true);setAuthChecked(true);
   }
 
-  function handleAuth(u){
-    setUser(u);
-    if(u) loadData(u.id);
-  }
+  function handleAuth(u){ setUser(u); if(u) loadData(u.id); }
 
   async function handleLogout(){
     await supabase.auth.signOut();
-    setUser(null);
-    setData(INIT);
-    setLoaded(false);
-    setAuthChecked(true);
-    setMenuOpen(false);
+    setUser(null);setData(INIT);setLoaded(false);setAuthChecked(true);
+    setMenuOpen(false);setMenuSection("main");
   }
 
   const setDataAndSave = (updater)=>{
@@ -1371,101 +1390,230 @@ export default function App(){
         setSyncing(true);
         supabase.from("fintrax_data")
           .upsert({user_id:user.id,data:next,updated_at:new Date().toISOString()})
-          .then(()=>setSyncing(false))
-          .catch(()=>setSyncing(false));
+          .then(()=>setSyncing(false)).catch(()=>setSyncing(false));
       }
       return next;
     });
   };
 
-  const Page = PAGES[active];
+  // Save settings to Supabase when they change
+  function saveSettings(dm, ep){
+    if(!TEST_MODE&&user){
+      setData(prev=>{
+        const next = {...prev,__darkMode:dm,__enabledPages:ep};
+        supabase.from("fintrax_data")
+          .upsert({user_id:user.id,data:next,updated_at:new Date().toISOString()})
+          .catch(()=>{});
+        return next;
+      });
+    }
+  }
+
+  function toggleDark(){
+    const nd = !darkMode;
+    setDarkMode(nd);
+    T = nd ? DARK : LIGHT;
+    saveSettings(nd, enabledPages);
+  }
+
+  function togglePage(id){
+    if(id==="overview") return; // overview always enabled
+    const ne = {...enabledPages,[id]:!enabledPages[id]};
+    setEnabledPages(ne);
+    if(!ne[active]) setActive("overview");
+    saveSettings(darkMode, ne);
+  }
+
   const username = user?.user_metadata?.username||user?.email?.split("@")[0]||"User";
+  const visiblePages = ALL_PAGES.filter(p => enabledPages[p.id]);
+  const Page = PAGE_COMPONENTS[active] || Overview;
 
-  // Still checking if user is logged in
+  // Loading / auth states
   if(!authChecked) return(
-    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
-      <div style={{fontSize:28,color:T.accent}}>⬡</div>
-      <div style={{fontSize:12,color:T.muted,letterSpacing:2}}>FINTRAX</div>
+    <div style={{minHeight:"100vh",background:DARK.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12,fontFamily:"'IBM Plex Mono',monospace"}}>
+      <div style={{fontSize:32,color:DARK.accent}}>⬡</div>
+      <div style={{fontSize:11,color:DARK.muted,letterSpacing:2}}>FINTRAX</div>
     </div>
   );
-
-  // Not logged in — show auth screen
   if(!TEST_MODE&&!user) return <AuthScreen onAuth={handleAuth}/>;
-
-  // Loading data
   if(!loaded) return(
-    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
-      <div style={{fontSize:28,color:T.accent}}>⬡</div>
-      <div style={{fontSize:12,color:T.muted,letterSpacing:2}}>Loading your data...</div>
+    <div style={{minHeight:"100vh",background:T.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12,fontFamily:"'IBM Plex Mono',monospace"}}>
+      <div style={{fontSize:32,color:T.accent}}>⬡</div>
+      <div style={{fontSize:11,color:T.muted,letterSpacing:2}}>Loading your data...</div>
     </div>
   );
+
+  // Dynamic styles that depend on T
+  const DS = {
+    card: {...S.card, background:T.card, border:`1px solid ${T.border}`},
+    input: {...S.input, background:T.surface, border:`1px solid ${T.border}`, color:T.text},
+  };
+
+  // Bubble toggle component
+  function BubbleToggle({on, onToggle, size="md"}){
+    const sz = size==="sm"?18:22;
+    return(
+      <div onClick={onToggle} style={{display:"inline-flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+        <div style={{width:sz*2.4,height:sz,borderRadius:sz,background:on?T.accent:T.border,position:"relative",transition:"background 0.2s",flexShrink:0}}>
+          <div style={{position:"absolute",top:2,left:on?`calc(100% - ${sz-4}px - 2px)`:2,width:sz-4,height:sz-4,borderRadius:"50%",background:"white",transition:"left 0.2s"}}/>
+        </div>
+        <span style={{fontSize:11,color:on?T.accent:T.muted,fontWeight:700,letterSpacing:1}}>{on?"ENABLED":"DISABLED"}</span>
+      </div>
+    );
+  }
+
+  // Bottom nav — first 5 visible pages + More button
+  const bottomPages = visiblePages.slice(0,5);
+  const morePagesExist = visiblePages.length > 5;
+  const extraPages = visiblePages.slice(5);
 
   return(
-    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",fontSize:14,overflowX:"hidden",width:"100%"}}>
+    <div ref={swipeRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
+      style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",fontSize:14,overflowX:"hidden",width:"100%"}}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
       <style>{`
         *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;max-width:100%;}
-        html,body{overflow-x:hidden;width:100%;margin:0;padding:0;}
+        html,body{overflow-x:hidden;width:100%;margin:0;padding:0;background:${T.bg};}
         input,select,button{font-family:'IBM Plex Mono','Courier New',monospace;max-width:100%;}
         input:focus,select:focus{border-color:${T.accent}!important;outline:none;box-shadow:0 0 0 2px ${T.accent}20;}
         button:active{opacity:0.7;}
         ::-webkit-scrollbar{width:4px;height:4px;}
         ::-webkit-scrollbar-thumb{background:${T.border};border-radius:4px;}
-        input[type="date"],input[type="time"]{color-scheme:dark;}
+        input[type="date"],input[type="time"]{color-scheme:${darkMode?"dark":"light"};}
         img{max-width:100%;height:auto;}
       `}</style>
-      {/* TOP BAR */}
+
+      {/* ── TOP BAR ── */}
       <div style={{position:"sticky",top:0,zIndex:200,background:T.surface,borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 16px",height:52}}>
+        {/* LEFT — hamburger */}
+        <button onClick={()=>{setMenuOpen(m=>!m);setMenuSection("main");}} style={{background:"none",border:`1px solid ${T.border}`,color:T.accent,fontSize:20,cursor:"pointer",padding:"4px 10px",borderRadius:8,fontFamily:"inherit",lineHeight:1}}>
+          {menuOpen?"✕":"☰"}
+        </button>
+        {/* RIGHT — app name */}
         <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <div style={{fontWeight:700,letterSpacing:4,color:T.accent,fontSize:15}}>⬡ FINTRAX</div>
+          {syncing&&<span style={{fontSize:10,color:T.muted,letterSpacing:1}}>saving...</span>}
           {TEST_MODE&&<span style={{fontSize:9,background:T.yellow+"20",color:T.yellow,border:`1px solid ${T.yellow}40`,borderRadius:4,padding:"2px 6px",letterSpacing:1,fontWeight:700}}>TEST</span>}
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          {syncing&&<div style={{fontSize:10,color:T.muted,letterSpacing:1}}>saving...</div>}
-          <button onClick={()=>setMenuOpen(m=>!m)} style={{background:"none",border:`1px solid ${T.border}`,color:T.accent,fontSize:20,cursor:"pointer",padding:"4px 10px",borderRadius:8,fontFamily:"inherit",lineHeight:1}}>
-            {menuOpen?"✕":"☰"}
-          </button>
+          <div style={{fontWeight:700,letterSpacing:4,color:T.accent,fontSize:15}}>FINTRAX ⬡</div>
         </div>
       </div>
-      {/* Mobile slide-up menu */}
+
+      {/* ── CASCADE MENU ── */}
       {menuOpen&&(
-        <div style={{position:"fixed",top:52,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",zIndex:199}} onClick={()=>setMenuOpen(false)}>
-          <div style={{background:T.surface,borderBottom:`1px solid ${T.border}`,padding:16}} onClick={e=>e.stopPropagation()}>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:16}}>
-              {NAV.map(n=>(
-                <button key={n.id} onClick={()=>{setActive(n.id);setMenuOpen(false);}} style={{padding:"12px 6px",borderRadius:10,border:`1px solid ${active===n.id?T.accent:T.border}`,background:active===n.id?T.accentGlow:T.card,color:active===n.id?T.accent:T.muted,cursor:"pointer",fontSize:11,fontFamily:"inherit",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-                  <span style={{fontSize:18}}>{n.icon}</span>
-                  <span style={{fontSize:10,letterSpacing:1}}>{n.label}</span>
-                </button>
-              ))}
-            </div>
-            {/* User info + logout */}
-            <div style={{borderTop:`1px solid ${T.border}`,paddingTop:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div>
-                <div style={{fontSize:10,color:T.muted,letterSpacing:2,marginBottom:2}}>LOGGED IN AS</div>
-                <div style={{fontSize:13,fontWeight:700,color:T.text}}>{username}</div>
+        <div style={{position:"fixed",top:52,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",zIndex:199}} onClick={()=>{setMenuOpen(false);setMenuSection("main");}}>
+          <div style={{background:T.surface,borderBottom:`1px solid ${T.border}`,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+
+            {/* MAIN MENU */}
+            {menuSection==="main"&&(
+              <div style={{padding:16}}>
+                {/* Profile row */}
+                <div onClick={()=>setMenuSection("profile")} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 16px",background:T.card,borderRadius:12,marginBottom:10,cursor:"pointer",border:`1px solid ${T.border}`}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{width:38,height:38,borderRadius:"50%",background:T.accent+"20",border:`1px solid ${T.accent}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:T.accent,flexShrink:0}}>👤</div>
+                    <div>
+                      <div style={{fontSize:10,color:T.muted,letterSpacing:2,marginBottom:2}}>PROFILE</div>
+                      <div style={{fontSize:14,fontWeight:700,color:T.text}}>{username}</div>
+                    </div>
+                  </div>
+                  <span style={{color:T.muted,fontSize:16}}>›</span>
+                </div>
+                {/* Settings row */}
+                <div onClick={()=>setMenuSection("settings")} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 16px",background:T.card,borderRadius:12,cursor:"pointer",border:`1px solid ${T.border}`}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{width:38,height:38,borderRadius:"50%",background:T.purple+"20",border:`1px solid ${T.purple}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>⚙️</div>
+                    <div>
+                      <div style={{fontSize:10,color:T.muted,letterSpacing:2,marginBottom:2}}>SETTINGS</div>
+                      <div style={{fontSize:14,fontWeight:700,color:T.text}}>App Preferences</div>
+                    </div>
+                  </div>
+                  <span style={{color:T.muted,fontSize:16}}>›</span>
+                </div>
               </div>
-              <button onClick={handleLogout} style={{...S.btn(T.red),padding:"8px 16px",fontSize:12}}>Log Out</button>
-            </div>
+            )}
+
+            {/* PROFILE SECTION */}
+            {menuSection==="profile"&&(
+              <div style={{padding:16}}>
+                <button onClick={()=>setMenuSection("main")} style={{background:"none",border:"none",color:T.accent,cursor:"pointer",fontSize:13,padding:"0 0 16px",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6}}>
+                  ‹ Back
+                </button>
+                <div style={{background:T.card,borderRadius:12,padding:20,border:`1px solid ${T.border}`,marginBottom:14,textAlign:"center"}}>
+                  <div style={{width:60,height:60,borderRadius:"50%",background:T.accent+"20",border:`2px solid ${T.accent}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 12px"}}>👤</div>
+                  <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:4}}>{username}</div>
+                  <div style={{fontSize:11,color:T.muted,letterSpacing:1}}>FINTRAX ACCOUNT</div>
+                </div>
+                <button onClick={handleLogout} style={{...S.btn(T.red),width:"100%",textAlign:"center",padding:"13px"}}>
+                  Log Out
+                </button>
+              </div>
+            )}
+
+            {/* SETTINGS SECTION */}
+            {menuSection==="settings"&&(
+              <div style={{padding:16}}>
+                <button onClick={()=>setMenuSection("main")} style={{background:"none",border:"none",color:T.accent,cursor:"pointer",fontSize:13,padding:"0 0 16px",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6}}>
+                  ‹ Back
+                </button>
+                {/* Dark / Light mode */}
+                <div style={{background:T.card,borderRadius:12,padding:16,border:`1px solid ${T.border}`,marginBottom:12}}>
+                  <div style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",marginBottom:12}}>Appearance</div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div>
+                      <div style={{fontSize:14,fontWeight:600,color:T.text}}>{darkMode?"Dark Mode":"Light Mode"}</div>
+                      <div style={{fontSize:11,color:T.muted,marginTop:2}}>{darkMode?"Switch to light":"Switch to dark"}</div>
+                    </div>
+                    <BubbleToggle on={darkMode} onToggle={toggleDark}/>
+                  </div>
+                </div>
+                {/* Page toggles */}
+                <div style={{background:T.card,borderRadius:12,padding:16,border:`1px solid ${T.border}`}}>
+                  <div style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",marginBottom:12}}>Enabled Pages</div>
+                  {ALL_PAGES.filter(p=>p.id!=="overview").map(p=>(
+                    <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:12,marginBottom:12,borderBottom:`1px solid ${T.border}30`}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                        <span style={{fontSize:16}}>{p.icon}</span>
+                        <span style={{fontSize:13,fontWeight:600,color:T.text}}>{p.label}</span>
+                      </div>
+                      <BubbleToggle on={!!enabledPages[p.id]} onToggle={()=>togglePage(p.id)} size="sm"/>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
-      {/* PAGE CONTENT */}
-      <div style={{maxWidth:700,margin:"0 auto",padding:"20px 14px 80px"}}>
+
+      {/* ── PAGE CONTENT ── */}
+      <div style={{maxWidth:700,margin:"0 auto",padding:"20px 14px 90px"}}>
         <Page data={data} setData={setDataAndSave}/>
       </div>
-      {/* BOTTOM NAV BAR */}
-      <div style={{position:"fixed",bottom:0,left:0,right:0,background:T.surface,borderTop:`1px solid ${T.border}`,display:"flex",zIndex:190,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
-        {NAV.slice(0,5).map(n=>(
-          <button key={n.id} onClick={()=>setActive(n.id)} style={{flex:1,padding:"10px 2px 8px",background:"none",border:"none",color:active===n.id?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderTop:`2px solid ${active===n.id?T.accent:"transparent"}`}}>
+
+      {/* ── EXPANDED BOTTOM NAV (More tray) ── */}
+      {bottomExpanded&&(
+        <div style={{position:"fixed",bottom:58,left:0,right:0,background:T.surface,borderTop:`1px solid ${T.border}`,zIndex:188,padding:12,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}} onClick={()=>setBottomExpanded(false)}>
+          {extraPages.map(n=>(
+            <button key={n.id} onClick={()=>{setActive(n.id);setBottomExpanded(false);}} style={{padding:"10px 6px",borderRadius:10,border:`1px solid ${active===n.id?T.accent:T.border}`,background:active===n.id?T.accentGlow:T.card,color:active===n.id?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+              <span style={{fontSize:18}}>{n.icon}</span>
+              <span style={{fontSize:10,letterSpacing:1}}>{n.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── BOTTOM NAV BAR ── */}
+      <div style={{position:"fixed",bottom:0,left:0,right:0,background:T.surface,borderTop:`1px solid ${T.border}`,display:"flex",zIndex:190,paddingBottom:"env(safe-area-inset-bottom,0px)",height:58}}>
+        {bottomPages.map(n=>(
+          <button key={n.id} onClick={()=>{setActive(n.id);setBottomExpanded(false);}} style={{flex:1,padding:"8px 2px 6px",background:"none",border:"none",color:active===n.id?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderTop:`2px solid ${active===n.id?T.accent:"transparent"}`,transition:"color 0.15s"}}>
             <span style={{fontSize:16}}>{n.icon}</span>
             <span style={{fontSize:9,letterSpacing:1}}>{n.label}</span>
           </button>
         ))}
-        <button onClick={()=>setMenuOpen(m=>!m)} style={{flex:1,padding:"10px 2px 8px",background:"none",border:"none",color:menuOpen?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderTop:`2px solid ${menuOpen?T.accent:"transparent"}`}}>
-          <span style={{fontSize:16}}>⋯</span>
-          <span style={{fontSize:9,letterSpacing:1}}>More</span>
-        </button>
+        {morePagesExist&&(
+          <button onClick={()=>setBottomExpanded(e=>!e)} style={{flex:1,padding:"8px 2px 6px",background:"none",border:"none",color:bottomExpanded?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderTop:`2px solid ${bottomExpanded?T.accent:"transparent"}`}}>
+            <span style={{fontSize:16}}>{bottomExpanded?"▼":"⋯"}</span>
+            <span style={{fontSize:9,letterSpacing:1}}>More</span>
+          </button>
+        )}
       </div>
     </div>
   );
