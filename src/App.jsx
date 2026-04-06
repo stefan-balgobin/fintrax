@@ -7,9 +7,9 @@ const DARK = {
   red:"#ff4d6d", yellow:"#ffd166", purple:"#a78bfa", text:"#e2e8f0", muted:"#64748b",
 };
 const LIGHT = {
-  bg:"#f0f4f8", surface:"#ffffff", card:"#e8eef5", border:"#cbd5e1",
-  accent:"#0284c7", accentGlow:"rgba(2,132,199,0.10)", green:"#059669",
-  red:"#dc2626", yellow:"#d97706", purple:"#7c3aed", text:"#1e293b", muted:"#64748b",
+  bg:"#f1f5f9", surface:"#ffffff", card:"#ffffff", border:"#e2e8f0",
+  accent:"#0369a1", accentGlow:"rgba(3,105,161,0.08)", green:"#047857",
+  red:"#dc2626", yellow:"#b45309", purple:"#6d28d9", text:"#0f172a", muted:"#64748b",
 };
 
 // Theme context — all components read T from here
@@ -1319,7 +1319,7 @@ function AuthScreen({onAuth}){
               </div>
             </div>
             {error&&<div style={{background:T.red+"15",border:`1px solid ${T.red}40`,borderRadius:8,padding:"10px 14px",fontSize:12,color:T.red,marginBottom:16,lineHeight:1.6}}>{error}</div>}
-            <button type="submit" disabled={loading} style={{width:"100%",padding:"13px",borderRadius:8,border:"none",background:isLogin?T.accent:T.green,color:"#0a0e1a",cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700,letterSpacing:1,opacity:loading?0.7:1}}>
+            <button type="submit" disabled={loading} style={{width:"100%",padding:"13px",borderRadius:8,border:"none",background:isLogin?T.accent:T.green,color:"#ffffff",cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700,letterSpacing:1,opacity:loading?0.7:1}}>
               {loading?(isLogin?"Logging in...":"Creating account..."):(isLogin?"LOG IN":"CREATE ACCOUNT")}
             </button>
           </form>
@@ -1388,6 +1388,14 @@ export default function App(){
     if(diff<0&&idx<vp.length-1) setActive(vp[idx+1].id);
     if(diff>0&&idx>0) setActive(vp[idx-1].id);
   }
+
+  // Update document background when theme changes — runs on mount and every toggle
+  React.useEffect(()=>{
+    const bg = darkMode ? DARK.bg : LIGHT.bg;
+    const text = darkMode ? DARK.text : LIGHT.text;
+    document.body.style.cssText = `background:${bg} !important;color:${text};margin:0;padding:0;overflow-x:hidden;`;
+    document.documentElement.style.cssText = `background:${bg} !important;`;
+  },[darkMode]);
 
   // Check if user is already logged in on app open
   React.useEffect(()=>{
@@ -1476,16 +1484,16 @@ export default function App(){
   );
   if(!TEST_MODE&&!user) return <AuthScreen onAuth={handleAuth}/>;
   if(!loaded) return(
-    <div style={{minHeight:"100vh",background:T.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12,fontFamily:"'IBM Plex Mono',monospace"}}>
-      <div style={{fontSize:32,color:T.accent}}>⬡</div>
-      <div style={{fontSize:11,color:T.muted,letterSpacing:2}}>Loading your data...</div>
+    <div style={{minHeight:"100vh",background:currentT.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12,fontFamily:"'IBM Plex Mono',monospace"}}>
+      <div style={{fontSize:32,color:currentT.accent}}>⬡</div>
+      <div style={{fontSize:11,color:currentT.muted,letterSpacing:2}}>Loading your data...</div>
     </div>
   );
 
-  // Dynamic styles that depend on T
+  // Dynamic styles that depend on current theme
   const DS = {
-    card: {...S.card, background:T.card, border:`1px solid ${T.border}`},
-    input: {...S.input, background:T.surface, border:`1px solid ${T.border}`, color:T.text},
+    card: {...S.card, background:currentT.card, border:`1px solid ${currentT.border}`},
+    input: {...S.input, background:currentT.surface, border:`1px solid ${currentT.border}`, color:currentT.text},
   };
 
   // Bottom nav — first 5 visible pages + More button
@@ -1496,63 +1504,63 @@ export default function App(){
   return(
     <ThemeCtx.Provider value={currentT}>
     <div ref={swipeRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
-      style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",fontSize:14,overflowX:"hidden",width:"100%"}}>
+      style={{minHeight:"100vh",background:currentT.bg,color:currentT.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",fontSize:14,overflowX:"hidden",width:"100%"}}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
       <style>{`
         *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;max-width:100%;}
-        html,body{overflow-x:hidden;width:100%;margin:0;padding:0;background:${T.bg};}
+        html,body{overflow-x:hidden;width:100%;margin:0;padding:0;}
         input,select,button{font-family:'IBM Plex Mono','Courier New',monospace;max-width:100%;}
-        input:focus,select:focus{border-color:${T.accent}!important;outline:none;box-shadow:0 0 0 2px ${T.accent}20;}
+        input:focus,select:focus{border-color:${currentT.accent}!important;outline:none;box-shadow:0 0 0 2px ${currentT.accent}20;}
         button:active{opacity:0.7;}
         ::-webkit-scrollbar{width:4px;height:4px;}
-        ::-webkit-scrollbar-thumb{background:${T.border};border-radius:4px;}
+        ::-webkit-scrollbar-thumb{background:${currentT.border};border-radius:4px;}
         input[type="date"],input[type="time"]{color-scheme:${darkMode?"dark":"light"};}
         img{max-width:100%;height:auto;}
       `}</style>
 
       {/* ── TOP BAR ── */}
-      <div style={{position:"sticky",top:0,zIndex:200,background:T.surface,borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 16px",height:52}}>
+      <div style={{position:"sticky",top:0,zIndex:200,background:currentT.surface,borderBottom:`1px solid ${currentT.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 16px",height:52}}>
         {/* LEFT — hamburger */}
-        <button onClick={()=>{setMenuOpen(m=>!m);setMenuSection("main");}} style={{background:"none",border:`1px solid ${T.border}`,color:T.accent,fontSize:20,cursor:"pointer",padding:"4px 10px",borderRadius:8,fontFamily:"inherit",lineHeight:1}}>
+        <button onClick={()=>{setMenuOpen(m=>!m);setMenuSection("main");}} style={{background:"none",border:`1px solid ${currentT.border}`,color:currentT.accent,fontSize:20,cursor:"pointer",padding:"4px 10px",borderRadius:8,fontFamily:"inherit",lineHeight:1}}>
           {menuOpen?"✕":"☰"}
         </button>
         {/* RIGHT — app name */}
         <div style={{display:"flex",alignItems:"center",gap:8}}>
-          {syncing&&<span style={{fontSize:10,color:T.muted,letterSpacing:1}}>saving...</span>}
-          {TEST_MODE&&<span style={{fontSize:9,background:T.yellow+"20",color:T.yellow,border:`1px solid ${T.yellow}40`,borderRadius:4,padding:"2px 6px",letterSpacing:1,fontWeight:700}}>TEST</span>}
-          <div style={{fontWeight:700,letterSpacing:4,color:T.accent,fontSize:15}}>FINTRAX ⬡</div>
+          {syncing&&<span style={{fontSize:10,color:currentT.muted,letterSpacing:1}}>saving...</span>}
+          {TEST_MODE&&<span style={{fontSize:9,background:currentT.yellow+"20",color:currentT.yellow,border:`1px solid ${currentT.yellow}40`,borderRadius:4,padding:"2px 6px",letterSpacing:1,fontWeight:700}}>TEST</span>}
+          <div style={{fontWeight:700,letterSpacing:4,color:currentT.accent,fontSize:15}}>FINTRAX ⬡</div>
         </div>
       </div>
 
       {/* ── CASCADE MENU ── */}
       {menuOpen&&(
         <div style={{position:"fixed",top:52,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",zIndex:199}} onClick={()=>{setMenuOpen(false);setMenuSection("main");}}>
-          <div style={{background:T.surface,borderBottom:`1px solid ${T.border}`,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+          <div style={{background:currentT.surface,borderBottom:`1px solid ${currentT.border}`,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
 
             {/* MAIN MENU */}
             {menuSection==="main"&&(
               <div style={{padding:16}}>
                 {/* Profile row */}
-                <div onClick={()=>setMenuSection("profile")} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 16px",background:T.card,borderRadius:12,marginBottom:10,cursor:"pointer",border:`1px solid ${T.border}`}}>
+                <div onClick={()=>setMenuSection("profile")} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 16px",background:currentT.card,borderRadius:12,marginBottom:10,cursor:"pointer",border:`1px solid ${currentT.border}`}}>
                   <div style={{display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{width:38,height:38,borderRadius:"50%",background:T.accent+"20",border:`1px solid ${T.accent}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:T.accent,flexShrink:0}}>👤</div>
+                    <div style={{width:38,height:38,borderRadius:"50%",background:currentT.accent+"20",border:`1px solid ${currentT.accent}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:currentT.accent,flexShrink:0}}>👤</div>
                     <div>
-                      <div style={{fontSize:10,color:T.muted,letterSpacing:2,marginBottom:2}}>PROFILE</div>
-                      <div style={{fontSize:14,fontWeight:700,color:T.text}}>{username}</div>
+                      <div style={{fontSize:10,color:currentT.muted,letterSpacing:2,marginBottom:2}}>PROFILE</div>
+                      <div style={{fontSize:14,fontWeight:700,color:currentT.text}}>{username}</div>
                     </div>
                   </div>
-                  <span style={{color:T.muted,fontSize:16}}>›</span>
+                  <span style={{color:currentT.muted,fontSize:16}}>›</span>
                 </div>
                 {/* Settings row */}
-                <div onClick={()=>setMenuSection("settings")} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 16px",background:T.card,borderRadius:12,cursor:"pointer",border:`1px solid ${T.border}`}}>
+                <div onClick={()=>setMenuSection("settings")} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 16px",background:currentT.card,borderRadius:12,cursor:"pointer",border:`1px solid ${currentT.border}`}}>
                   <div style={{display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{width:38,height:38,borderRadius:"50%",background:T.purple+"20",border:`1px solid ${T.purple}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>⚙️</div>
+                    <div style={{width:38,height:38,borderRadius:"50%",background:currentT.purple+"20",border:`1px solid ${currentT.purple}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>⚙️</div>
                     <div>
-                      <div style={{fontSize:10,color:T.muted,letterSpacing:2,marginBottom:2}}>SETTINGS</div>
-                      <div style={{fontSize:14,fontWeight:700,color:T.text}}>App Preferences</div>
+                      <div style={{fontSize:10,color:currentT.muted,letterSpacing:2,marginBottom:2}}>SETTINGS</div>
+                      <div style={{fontSize:14,fontWeight:700,color:currentT.text}}>App Preferences</div>
                     </div>
                   </div>
-                  <span style={{color:T.muted,fontSize:16}}>›</span>
+                  <span style={{color:currentT.muted,fontSize:16}}>›</span>
                 </div>
               </div>
             )}
@@ -1560,15 +1568,15 @@ export default function App(){
             {/* PROFILE SECTION */}
             {menuSection==="profile"&&(
               <div style={{padding:16}}>
-                <button onClick={()=>setMenuSection("main")} style={{background:"none",border:"none",color:T.accent,cursor:"pointer",fontSize:13,padding:"0 0 16px",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6}}>
+                <button onClick={()=>setMenuSection("main")} style={{background:"none",border:"none",color:currentT.accent,cursor:"pointer",fontSize:13,padding:"0 0 16px",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6}}>
                   ‹ Back
                 </button>
-                <div style={{background:T.card,borderRadius:12,padding:20,border:`1px solid ${T.border}`,marginBottom:14,textAlign:"center"}}>
-                  <div style={{width:60,height:60,borderRadius:"50%",background:T.accent+"20",border:`2px solid ${T.accent}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 12px"}}>👤</div>
-                  <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:4}}>{username}</div>
-                  <div style={{fontSize:11,color:T.muted,letterSpacing:1}}>FINTRAX ACCOUNT</div>
+                <div style={{background:currentT.card,borderRadius:12,padding:20,border:`1px solid ${currentT.border}`,marginBottom:14,textAlign:"center"}}>
+                  <div style={{width:60,height:60,borderRadius:"50%",background:currentT.accent+"20",border:`2px solid ${currentT.accent}40`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,margin:"0 auto 12px"}}>👤</div>
+                  <div style={{fontSize:18,fontWeight:700,color:currentT.text,marginBottom:4}}>{username}</div>
+                  <div style={{fontSize:11,color:currentT.muted,letterSpacing:1}}>FINTRAX ACCOUNT</div>
                 </div>
-                <button onClick={handleLogout} style={{...S.btn(T.red),width:"100%",textAlign:"center",padding:"13px"}}>
+                <button onClick={handleLogout} style={{...S.btn(currentT.red),width:"100%",textAlign:"center",padding:"13px"}}>
                   Log Out
                 </button>
               </div>
@@ -1577,28 +1585,28 @@ export default function App(){
             {/* SETTINGS SECTION */}
             {menuSection==="settings"&&(
               <div style={{padding:16}}>
-                <button onClick={()=>setMenuSection("main")} style={{background:"none",border:"none",color:T.accent,cursor:"pointer",fontSize:13,padding:"0 0 16px",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6}}>
+                <button onClick={()=>setMenuSection("main")} style={{background:"none",border:"none",color:currentT.accent,cursor:"pointer",fontSize:13,padding:"0 0 16px",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6}}>
                   ‹ Back
                 </button>
                 {/* Dark / Light mode */}
-                <div style={{background:T.card,borderRadius:12,padding:16,border:`1px solid ${T.border}`,marginBottom:12}}>
-                  <div style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",marginBottom:12}}>Appearance</div>
+                <div style={{background:currentT.card,borderRadius:12,padding:16,border:`1px solid ${currentT.border}`,marginBottom:12}}>
+                  <div style={{fontSize:10,letterSpacing:2,color:currentT.muted,textTransform:"uppercase",marginBottom:12}}>Appearance</div>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                     <div>
-                      <div style={{fontSize:14,fontWeight:600,color:T.text}}>{darkMode?"Dark Mode":"Light Mode"}</div>
-                      <div style={{fontSize:11,color:T.muted,marginTop:2}}>{darkMode?"Switch to light":"Switch to dark"}</div>
+                      <div style={{fontSize:14,fontWeight:600,color:currentT.text}}>{darkMode?"Dark Mode":"Light Mode"}</div>
+                      <div style={{fontSize:11,color:currentT.muted,marginTop:2}}>{darkMode?"Switch to light":"Switch to dark"}</div>
                     </div>
                     <BubbleToggle on={darkMode} onToggle={toggleDark}/>
                   </div>
                 </div>
                 {/* Page toggles */}
-                <div style={{background:T.card,borderRadius:12,padding:16,border:`1px solid ${T.border}`}}>
-                  <div style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",marginBottom:12}}>Enabled Pages</div>
+                <div style={{background:currentT.card,borderRadius:12,padding:16,border:`1px solid ${currentT.border}`}}>
+                  <div style={{fontSize:10,letterSpacing:2,color:currentT.muted,textTransform:"uppercase",marginBottom:12}}>Enabled Pages</div>
                   {ALL_PAGES.filter(p=>p.id!=="overview").map(p=>(
-                    <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:12,marginBottom:12,borderBottom:`1px solid ${T.border}30`}}>
+                    <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:12,marginBottom:12,borderBottom:`1px solid ${currentT.border}30`}}>
                       <div style={{display:"flex",alignItems:"center",gap:10}}>
                         <span style={{fontSize:16}}>{p.icon}</span>
-                        <span style={{fontSize:13,fontWeight:600,color:T.text}}>{p.label}</span>
+                        <span style={{fontSize:13,fontWeight:600,color:currentT.text}}>{p.label}</span>
                       </div>
                       <BubbleToggle on={!!enabledPages[p.id]} onToggle={()=>togglePage(p.id)} size="sm"/>
                     </div>
@@ -1617,9 +1625,9 @@ export default function App(){
 
       {/* ── EXPANDED BOTTOM NAV (More tray) ── */}
       {bottomExpanded&&(
-        <div style={{position:"fixed",bottom:58,left:0,right:0,background:T.surface,borderTop:`1px solid ${T.border}`,zIndex:188,padding:12,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}} onClick={()=>setBottomExpanded(false)}>
+        <div style={{position:"fixed",bottom:58,left:0,right:0,background:currentT.surface,borderTop:`1px solid ${currentT.border}`,zIndex:188,padding:12,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}} onClick={()=>setBottomExpanded(false)}>
           {extraPages.map(n=>(
-            <button key={n.id} onClick={()=>{setActive(n.id);setBottomExpanded(false);}} style={{padding:"10px 6px",borderRadius:10,border:`1px solid ${active===n.id?T.accent:T.border}`,background:active===n.id?T.accentGlow:T.card,color:active===n.id?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+            <button key={n.id} onClick={()=>{setActive(n.id);setBottomExpanded(false);}} style={{padding:"10px 6px",borderRadius:10,border:`1px solid ${active===n.id?currentT.accent:currentT.border}`,background:active===n.id?currentT.accentGlow:currentT.card,color:active===n.id?currentT.accent:currentT.muted,cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
               <span style={{fontSize:18}}>{n.icon}</span>
               <span style={{fontSize:10,letterSpacing:1}}>{n.label}</span>
             </button>
@@ -1628,15 +1636,15 @@ export default function App(){
       )}
 
       {/* ── BOTTOM NAV BAR ── */}
-      <div style={{position:"fixed",bottom:0,left:0,right:0,background:T.surface,borderTop:`1px solid ${T.border}`,display:"flex",zIndex:190,paddingBottom:"env(safe-area-inset-bottom,0px)",height:58}}>
+      <div style={{position:"fixed",bottom:0,left:0,right:0,background:currentT.surface,borderTop:`1px solid ${currentT.border}`,display:"flex",zIndex:190,paddingBottom:"env(safe-area-inset-bottom,0px)",height:58}}>
         {bottomPages.map(n=>(
-          <button key={n.id} onClick={()=>{setActive(n.id);setBottomExpanded(false);}} style={{flex:1,padding:"8px 2px 6px",background:"none",border:"none",color:active===n.id?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderTop:`2px solid ${active===n.id?T.accent:"transparent"}`,transition:"color 0.15s"}}>
+          <button key={n.id} onClick={()=>{setActive(n.id);setBottomExpanded(false);}} style={{flex:1,padding:"8px 2px 6px",background:"none",border:"none",color:active===n.id?currentT.accent:currentT.muted,cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderTop:`2px solid ${active===n.id?currentT.accent:"transparent"}`,transition:"color 0.15s"}}>
             <span style={{fontSize:16}}>{n.icon}</span>
             <span style={{fontSize:9,letterSpacing:1}}>{n.label}</span>
           </button>
         ))}
         {morePagesExist&&(
-          <button onClick={()=>setBottomExpanded(e=>!e)} style={{flex:1,padding:"8px 2px 6px",background:"none",border:"none",color:bottomExpanded?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderTop:`2px solid ${bottomExpanded?T.accent:"transparent"}`}}>
+          <button onClick={()=>setBottomExpanded(e=>!e)} style={{flex:1,padding:"8px 2px 6px",background:"none",border:"none",color:bottomExpanded?currentT.accent:currentT.muted,cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderTop:`2px solid ${bottomExpanded?currentT.accent:"transparent"}`}}>
             <span style={{fontSize:16}}>{bottomExpanded?"▼":"⋯"}</span>
             <span style={{fontSize:9,letterSpacing:1}}>More</span>
           </button>
