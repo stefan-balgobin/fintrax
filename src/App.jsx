@@ -494,30 +494,46 @@ function Subscriptions({data,setData}){
   const T = useT(); const S = useS();
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
+  const [formMembers,setFormMembers] = useState([]);
   const [search,setSearch] = useState("");
   const [collapsed,setCollapsed] = useState(false);
   const [mOpen,setMOpen] = useState({});
   const [editM,setEditM] = useState({});
+  const [cardFilter,setCardFilter] = useState("All");
   const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
   const annual = data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?Number(sub.amount||0):Number(sub.amount||0)*12),0);
-  const shown = data.subscriptions.filter(s=>!search||s.service.toLowerCase().includes(search.toLowerCase()));
-  const parseM = str=>{if(!str)return[];return str.split(",").map(m=>{const p=m.trim().split(":");return{name:p[0]?.trim()||"",paid:(p[1]?.trim()||"").toLowerCase()==="paid",date:p[2]?.trim()||""};});};
-  const serM = arr=>arr.map(m=>`${m.name}:${m.paid?"Paid":"Unpaid"}:${m.date}`).join(", ");
+  const parseM = str=>{if(!str)return[];return str.split(",").map(m=>{const p=m.trim().split(":");return{name:p[0]?.trim()||"",paid:(p[1]?.trim()||"").toLowerCase()==="paid",date:p[2]?.trim()||""};}).filter(m=>m.name);};
+  const serM = arr=>arr.filter(m=>m.name.trim()).map(m=>`${m.name}:${m.paid?"Paid":"Unpaid"}:${m.date}`).join(", ");
+  const shown = data.subscriptions.filter(s=>{
+    if(search&&!s.service.toLowerCase().includes(search.toLowerCase())) return false;
+    if(cardFilter==="Annual") return s.type==="Annual";
+    if(cardFilter==="Monthly") return s.type==="Monthly";
+    return true;
+  });
   const togglePaid = (sid,i)=>setData(d=>({...d,subscriptions:d.subscriptions.map(sub=>{if(sub.id!==sid)return sub;const ms=parseM(sub.members);ms[i]={...ms[i],paid:!ms[i].paid,date:!ms[i].paid?new Date().toISOString().slice(0,10):ms[i].date};return{...sub,members:serM(ms)};})}));
   const updMF = (sid,i,field,val)=>setData(d=>({...d,subscriptions:d.subscriptions.map(sub=>{if(sub.id!==sid)return sub;const ms=parseM(sub.members);ms[i]={...ms[i],[field]:val};return{...sub,members:serM(ms)};})}));
-  function save(){setData(d=>({...d,subscriptions:modal==="add"?[...d.subscriptions,{...form,id:nextId(d.subscriptions)}]:d.subscriptions.map(s=>s.id===form.id?{...form}:s)}));setModal(null);}
+  function openAdd(){setForm({service:"",type:"Monthly",amount:"",renews:""});setFormMembers([]);setModal("add");}
+  function openEdit(sub){setForm({...sub});setFormMembers(parseM(sub.members));setModal("edit");}
+  function save(){
+    const membersStr=serM(formMembers);
+    setData(d=>({...d,subscriptions:modal==="add"?[...d.subscriptions,{...form,members:membersStr,id:nextId(d.subscriptions)}]:d.subscriptions.map(s=>s.id===form.id?{...form,members:membersStr}:s)}));
+    setModal(null);
+  }
+  function addMember(){setFormMembers(m=>[...m,{name:"",paid:false,date:""}]);}
+  function removeMember(i){setFormMembers(m=>m.filter((_,idx)=>idx!==i));}
+  function updMember(i,field,val){setFormMembers(m=>m.map((x,idx)=>idx===i?{...x,[field]:val}:x));}
   return(
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
         <div style={{fontSize:18,fontWeight:700,letterSpacing:2}}>SUBSCRIPTIONS</div>
-        <button style={{...S.btn(T.green),padding:"8px 14px"}} onClick={()=>{setForm({service:"",type:"Monthly",amount:"",renews:"",members:""});setModal("add");}}>+ Add</button>
+        <button style={{...S.btn(T.green),padding:"8px 14px"}} onClick={openAdd}>+ Add</button>
       </div>
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// RECURRING SUBSCRIPTION MANAGER</div>
       <SearchBar value={search} onChange={setSearch} placeholder="Search subscriptions..."/>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(100px, 1fr))",gap:10,marginBottom:14}}>
-        <StatCard label="Active" value={data.subscriptions.length} color={T.accent}/>
-        <StatCard label="Annual" value={fmt(annual)} color={T.red}/>
-        <StatCard label="Monthly" value={fmt(annual/12)} color={T.yellow}/>
+        <StatCard label="Active" value={data.subscriptions.length} color={T.accent} onClick={()=>setCardFilter("All")} active={cardFilter==="All"}/>
+        <StatCard label="Annual" value={fmt(annual)} color={T.red} onClick={()=>setCardFilter(f=>f==="Annual"?"All":"Annual")} active={cardFilter==="Annual"}/>
+        <StatCard label="Monthly" value={fmt(annual/12)} color={T.yellow} onClick={()=>setCardFilter(f=>f==="Monthly"?"All":"Monthly")} active={cardFilter==="Monthly"}/>
       </div>
       <ListToggle collapsed={collapsed} onToggle={()=>setCollapsed(c=>!c)} count={shown.length} label="Subscriptions"/>
       {!collapsed&&(
@@ -579,7 +595,7 @@ function Subscriptions({data,setData}){
                   </div>
                 )}
                 <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}>
-                  <ItemActions label={sub.service} onEdit={()=>{setForm({...sub});setModal("edit");}} onDelete={()=>setData(d=>({...d,subscriptions:d.subscriptions.filter(x=>x.id!==sub.id)}))}/>
+                  <ItemActions label={sub.service} onEdit={()=>openEdit(sub)} onDelete={()=>setData(d=>({...d,subscriptions:d.subscriptions.filter(x=>x.id!==sub.id)}))}/>
                 </div>
               </div>
             );
@@ -594,9 +610,28 @@ function Subscriptions({data,setData}){
             <Field label="Amount"><input style={S.input} type="number" value={form.amount||""} onChange={e=>upd("amount",e.target.value)} placeholder="0.00"/></Field>
           </G2>
           <Field label="Renewal Date"><input style={S.input} type="date" value={form.renews||""} onChange={e=>upd("renews",e.target.value)}/></Field>
-          <Field label="Members (Name:Paid/Unpaid:Date, comma separated)">
-            <input style={S.input} value={form.members||""} onChange={e=>upd("members",e.target.value)} placeholder="Alice:Paid:2025-11-01, Bob:Unpaid:"/>
-          </Field>
+          <div style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <label style={S.label}>Members</label>
+              <button type="button" style={{...S.btn(T.accent),padding:"4px 12px",fontSize:12}} onClick={addMember}>+ Add Member</button>
+            </div>
+            {formMembers.length===0&&<div style={{fontSize:12,color:T.muted,padding:"8px 0"}}>No members added.</div>}
+            {formMembers.map((m,i)=>(
+              <div key={i} style={{background:T.bg,borderRadius:8,padding:"10px 12px",border:`1px solid ${T.border}30`,marginBottom:8}}>
+                <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+                  <input style={{...S.input,flex:1}} value={m.name} onChange={e=>updMember(i,"name",e.target.value)} placeholder="Member name"/>
+                  <button type="button" style={{...S.btn(m.paid?T.green:T.red),padding:"8px 12px",fontSize:12,flexShrink:0}} onClick={()=>updMember(i,"paid",!m.paid)}>{m.paid?"Paid":"Unpaid"}</button>
+                  <button type="button" style={{background:"none",border:"none",color:T.red,cursor:"pointer",fontSize:16,padding:"0 4px",flexShrink:0}} onClick={()=>removeMember(i)}>✕</button>
+                </div>
+                {m.paid&&(
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                    <span style={{fontSize:11,color:T.muted,whiteSpace:"nowrap"}}>Paid on:</span>
+                    <input style={{...S.input,flex:1}} type="date" value={m.date||""} onChange={e=>updMember(i,"date",e.target.value)}/>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
           <SaveCancel onCancel={()=>setModal(null)} onSave={save}/>
         </Modal>
       )}
