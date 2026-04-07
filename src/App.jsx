@@ -501,9 +501,10 @@ function Subscriptions({data,setData}){
   const [editM,setEditM] = useState({});
   const [cardFilter,setCardFilter] = useState("All");
   const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
-  const annual = data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?Number(sub.amount||0):Number(sub.amount||0)*12),0);
   const parseM = str=>{if(!str)return[];return str.split(",").map(m=>{const p=m.trim().split(":");return{name:p[0]?.trim()||"",paid:(p[1]?.trim()||"").toLowerCase()==="paid",date:p[2]?.trim()||""};}).filter(m=>m.name);};
   const serM = arr=>arr.filter(m=>m.name.trim()).map(m=>`${m.name}:${m.paid?"Paid":"Unpaid"}:${m.date}`).join(", ");
+  const userCost = sub=>{ const members=parseM(sub.members); const amt=Number(sub.amount||0); return members.length>0?amt/members.length:amt; };
+  const annual = data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?userCost(sub):userCost(sub)*12),0);
   const shown = data.subscriptions.filter(s=>{
     if(search&&!s.service.toLowerCase().includes(search.toLowerCase())) return false;
     if(cardFilter==="Annual") return s.type==="Annual";
@@ -512,8 +513,8 @@ function Subscriptions({data,setData}){
   });
   const togglePaid = (sid,i)=>setData(d=>({...d,subscriptions:d.subscriptions.map(sub=>{if(sub.id!==sid)return sub;const ms=parseM(sub.members);ms[i]={...ms[i],paid:!ms[i].paid,date:!ms[i].paid?new Date().toISOString().slice(0,10):ms[i].date};return{...sub,members:serM(ms)};})}));
   const updMF = (sid,i,field,val)=>setData(d=>({...d,subscriptions:d.subscriptions.map(sub=>{if(sub.id!==sid)return sub;const ms=parseM(sub.members);ms[i]={...ms[i],[field]:val};return{...sub,members:serM(ms)};})}));
-  function openAdd(){setForm({service:"",type:"Monthly",amount:"",renews:""});setFormMembers([]);setModal("add");}
-  function openEdit(sub){setForm({...sub});setFormMembers(parseM(sub.members));setModal("edit");}
+  function openAdd(){setForm({service:"",type:"Monthly",amount:"",renews:""});setFormMembers([{name:"Me",paid:false,date:""}]);setModal("add");}
+  function openEdit(sub){setForm({...sub});const ms=parseM(sub.members);if(ms.length===0||ms[0].name!=="Me")ms.unshift({name:"Me",paid:false,date:""});setFormMembers(ms);setModal("edit");}
   function save(){
     const membersStr=serM(formMembers);
     setData(d=>({...d,subscriptions:modal==="add"?[...d.subscriptions,{...form,members:membersStr,id:nextId(d.subscriptions)}]:d.subscriptions.map(s=>s.id===form.id?{...form,members:membersStr}:s)}));
@@ -541,7 +542,8 @@ function Subscriptions({data,setData}){
           {shown.map(sub=>{
             const tl=timeLeft(sub.renews);
             const members=parseM(sub.members);
-            const split=members.length>0?Number(sub.amount||0)/members.length:0;
+            const myCost=userCost(sub);
+            const split=members.length>0?Number(sub.amount||0)/members.length:Number(sub.amount||0);
             const isOpen=!!mOpen[sub.id];
             return(
               <div key={sub.id} style={{...S.card,borderColor:T.accent+"30"}}>
@@ -553,18 +555,21 @@ function Subscriptions({data,setData}){
                   <span style={S.badge(T.purple)}>{sub.type}</span>
                   {sub.renews&&<span style={{fontSize:12}}><span style={{color:T.muted}}>Renews </span><span style={{color:T.text,fontWeight:600}}>{fmtDate(sub.renews)}</span></span>}
                 </div>
-                <div style={{fontSize:20,fontWeight:700,color:T.accent,marginBottom:2}}>{fmt(sub.amount)}</div>
+                <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:2}}>
+                  <div style={{fontSize:20,fontWeight:700,color:T.accent}}>{fmt(myCost)}</div>
+                  {members.length>1&&<div style={{fontSize:11,color:T.muted}}>my share · {fmt(sub.amount)} total</div>}
+                </div>
                 <div style={{fontSize:11,color:T.muted,marginBottom:members.length>0?10:4}}>{sub.type==="Annual"?"per year":"per month"}</div>
                 {members.length>0&&(
                   <div style={{borderTop:`1px solid ${T.border}30`,paddingTop:10}}>
                     <button style={S.outlineBtn(isOpen)} onClick={()=>setMOpen(p=>({...p,[sub.id]:!p[sub.id]}))}>Members ({members.length})</button>
                     {isOpen&&(
                       <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:8}}>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr auto auto auto",gap:8,fontSize:10,color:T.muted,letterSpacing:1,padding:"0 4px",marginBottom:2}}>
-                          <span>MEMBER</span><span style={{textAlign:"center"}}>STATUS</span><span style={{textAlign:"right",minWidth:56}}>SPLIT</span><span/>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 80px 64px 28px",gap:8,fontSize:10,color:T.muted,letterSpacing:1,padding:"0 4px",marginBottom:2}}>
+                          <span>MEMBER</span><span style={{textAlign:"center"}}>STATUS</span><span style={{textAlign:"center"}}>SPLIT</span><span/>
                         </div>
                         {members.map((m,i)=>{const ek=`${sub.id}_${i}`;const isEditing=!!editM[ek];return(
-                          <div key={i} style={{background:T.bg,borderRadius:8,padding:"10px 12px",border:`1px solid ${T.border}30`}}>
+                          <div key={i} style={{background:T.bg,borderRadius:8,padding:"10px 12px",border:`1px solid ${i===0?T.accent+"50":T.border}30`}}>
                             {isEditing?(
                               <div style={{display:"flex",flexDirection:"column",gap:8}}>
                                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -578,13 +583,15 @@ function Subscriptions({data,setData}){
                                 </div>
                               </div>
                             ):(
-                              <div style={{display:"grid",gridTemplateColumns:"1fr auto auto auto",gap:8,alignItems:"center"}}>
+                              <div style={{display:"grid",gridTemplateColumns:"1fr 80px 64px 28px",gap:8,alignItems:"center"}}>
                                 <div>
-                                  <div style={{fontWeight:600,fontSize:13,color:T.text}}>{m.name}</div>
+                                  <div style={{fontWeight:600,fontSize:13,color:i===0?T.accent:T.text}}>{m.name}{i===0&&" (You)"}</div>
                                   {m.date&&<div style={{fontSize:10,color:T.muted}}>Paid: {fmtDate(m.date)}</div>}
                                 </div>
-                                <button style={{...S.badge(m.paid?T.green:T.red),cursor:"pointer",border:`1px solid ${m.paid?T.green:T.red}60`,background:"none"}} onClick={()=>togglePaid(sub.id,i)}>{m.paid?"Paid":"Unpaid"}</button>
-                                <span style={{color:T.accent,fontSize:12,textAlign:"right",minWidth:56}}>{fmt(split)}</span>
+                                <div style={{display:"flex",justifyContent:"center"}}>
+                                  <button style={{...S.badge(m.paid?T.green:T.red),cursor:"pointer",border:`1px solid ${m.paid?T.green:T.red}60`,background:"none"}} onClick={()=>togglePaid(sub.id,i)}>{m.paid?"Paid":"Unpaid"}</button>
+                                </div>
+                                <span style={{color:T.accent,fontSize:12,textAlign:"center"}}>{fmt(split)}</span>
                                 <button style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:14,padding:"0 4px"}} onClick={()=>setEditM(p=>({...p,[ek]:true}))}>✏</button>
                               </div>
                             )}
@@ -617,14 +624,17 @@ function Subscriptions({data,setData}){
             </div>
             {formMembers.length===0&&<div style={{fontSize:12,color:T.muted,padding:"8px 0"}}>No members added.</div>}
             {formMembers.map((m,i)=>(
-              <div key={i} style={{background:T.bg,borderRadius:8,padding:"10px 12px",border:`1px solid ${T.border}30`,marginBottom:8}}>
-                <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
-                  <input style={{...S.input,flex:1}} value={m.name} onChange={e=>updMember(i,"name",e.target.value)} placeholder="Member name"/>
+              <div key={i} style={{background:T.bg,borderRadius:8,padding:"10px 12px",border:`1px solid ${i===0?T.accent+"50":T.border+"50"}`,marginBottom:8}}>
+                <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:m.paid?8:0}}>
+                  {i===0
+                    ? <span style={{flex:1,fontSize:13,fontWeight:700,color:T.accent}}>Me (You)</span>
+                    : <input style={{...S.input,flex:1}} value={m.name} onChange={e=>updMember(i,"name",e.target.value)} placeholder="Member name"/>
+                  }
                   <button type="button" style={{...S.btn(m.paid?T.green:T.red),padding:"8px 12px",fontSize:12,flexShrink:0}} onClick={()=>updMember(i,"paid",!m.paid)}>{m.paid?"Paid":"Unpaid"}</button>
-                  <button type="button" style={{background:"none",border:"none",color:T.red,cursor:"pointer",fontSize:16,padding:"0 4px",flexShrink:0}} onClick={()=>removeMember(i)}>✕</button>
+                  {i>0&&<button type="button" style={{background:"none",border:"none",color:T.red,cursor:"pointer",fontSize:16,padding:"0 4px",flexShrink:0}} onClick={()=>removeMember(i)}>✕</button>}
                 </div>
                 {m.paid&&(
-                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <div style={{display:"flex",gap:8,alignItems:"center",marginTop:8}}>
                     <span style={{fontSize:11,color:T.muted,whiteSpace:"nowrap"}}>Paid on:</span>
                     <input style={{...S.input,flex:1}} type="date" value={m.date||""} onChange={e=>updMember(i,"date",e.target.value)}/>
                   </div>
