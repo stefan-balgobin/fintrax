@@ -57,12 +57,13 @@ const INIT = {
 };
 
 // ── SHARED COMPONENTS ─────────────────────────────────────────────────────────
-function StatCard({label,value,color,onClick,active}){
+function StatCard({label,value,sub,color,onClick,active}){
   const T = useT(); const S = useS();
   return(
     <div onClick={onClick} style={{...S.card,marginBottom:0,borderColor:color+(active?"99":"40"),boxShadow:`0 0 14px ${color}${active?"30":"10"}`,cursor:onClick?"pointer":"default",overflow:"hidden",minWidth:0}}>
       <div style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",marginBottom:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{label}</div>
       <div style={{fontSize:18,fontWeight:700,color,lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{value}</div>
+      {sub&&<div style={{fontSize:11,color:T.muted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sub}</div>}
       {active&&<div style={{fontSize:9,color,letterSpacing:2,marginTop:4}}>● ACTIVE</div>}
     </div>
   );
@@ -504,7 +505,11 @@ function Subscriptions({data,setData}){
   const parseM = str=>{if(!str)return[];return str.split(",").map(m=>{const p=m.trim().split(":");return{name:p[0]?.trim()||"",paid:(p[1]?.trim()||"").toLowerCase()==="paid",date:p[2]?.trim()||""};}).filter(m=>m.name);};
   const serM = arr=>arr.filter(m=>m.name.trim()).map(m=>`${m.name}:${m.paid?"Paid":"Unpaid"}:${m.date}`).join(", ");
   const userCost = sub=>{ const members=parseM(sub.members); const amt=Number(sub.amount||0); return members.length>0?amt/members.length:amt; };
-  const annual = data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?userCost(sub):userCost(sub)*12),0);
+  const annualSubs = data.subscriptions.filter(s=>s.type==="Annual");
+  const monthlySubs = data.subscriptions.filter(s=>s.type==="Monthly");
+  const annualTotal = annualSubs.reduce((s,sub)=>s+userCost(sub),0);
+  const monthlyTotal = monthlySubs.reduce((s,sub)=>s+userCost(sub),0);
+  const annual = annualTotal + monthlyTotal*12;
   const shown = data.subscriptions.filter(s=>{
     if(search&&!s.service.toLowerCase().includes(search.toLowerCase())) return false;
     if(cardFilter==="Annual") return s.type==="Annual";
@@ -532,9 +537,9 @@ function Subscriptions({data,setData}){
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// RECURRING SUBSCRIPTION MANAGER</div>
       <SearchBar value={search} onChange={setSearch} placeholder="Search subscriptions..."/>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(100px, 1fr))",gap:10,marginBottom:14}}>
-        <StatCard label="Active" value={data.subscriptions.length} color={T.accent} onClick={()=>setCardFilter("All")} active={cardFilter==="All"}/>
-        <StatCard label="Annual" value={fmt(annual)} color={T.red} onClick={()=>setCardFilter(f=>f==="Annual"?"All":"Annual")} active={cardFilter==="Annual"}/>
-        <StatCard label="Monthly" value={fmt(annual/12)} color={T.yellow} onClick={()=>setCardFilter(f=>f==="Monthly"?"All":"Monthly")} active={cardFilter==="Monthly"}/>
+        <StatCard label="Total Yearly Subs Cost" value={fmt(annual)} sub={`${data.subscriptions.length} subscription${data.subscriptions.length!==1?"s":""}`} color={T.accent} onClick={()=>setCardFilter("All")} active={cardFilter==="All"}/>
+        <StatCard label="Annual Subs" value={fmt(annualTotal)} sub={`${annualSubs.length} sub${annualSubs.length!==1?"s":""}`} color={T.red} onClick={()=>setCardFilter(f=>f==="Annual"?"All":"Annual")} active={cardFilter==="Annual"}/>
+        <StatCard label="Monthly Subs" value={fmt(monthlyTotal)} sub={`${monthlySubs.length} sub${monthlySubs.length!==1?"s":""}`} color={T.yellow} onClick={()=>setCardFilter(f=>f==="Monthly"?"All":"Monthly")} active={cardFilter==="Monthly"}/>
       </div>
       <ListToggle collapsed={collapsed} onToggle={()=>setCollapsed(c=>!c)} count={shown.length} label="Subscriptions"/>
       {!collapsed&&(
