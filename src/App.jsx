@@ -266,8 +266,11 @@ function Expenses({data,setData}){
   const [collapsed,setCollapsed] = useState(false);
   const [cardFilter,setCardFilter] = useState("All");
   const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
-  const subTotal = data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?Number(sub.amount||0):Number(sub.amount||0)*12),0);
+  const parseM = str=>{if(!str)return[];return str.split(",").map(m=>{const p=m.trim().split(":");return{name:p[0]?.trim()||"",paid:(p[1]?.trim()||"").toLowerCase()==="paid",date:p[2]?.trim()||""};}).filter(m=>m.name);};
+  const subUserCost = sub=>{ const members=parseM(sub.members); const amt=Number(sub.amount||0); return members.length>0?amt/members.length:amt; };
+  const subTotal = data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?subUserCost(sub):subUserCost(sub)*12),0);
   const certTotal = data.certs.filter(c=>expiryYear(c.expiry)===CY).reduce((s,c)=>s+Number(c.costTTD||0),0);
+  const personalDocsTotal = data.personalDocs.filter(d=>logYear(d.issued)===CY).reduce((s,d)=>s+Number(d.cost||0),0);
   const carTotal = data.carLog.filter(r=>logYear(r.date)===CY).reduce((s,r)=>s+Number(r.cost||0),0);
   const leisureTotal = data.leisure.reduce((s,r)=>{
     const legs=(r.legs||[]).slice().sort((a,b)=>((a.flightType==="Multi-City"?a.segments?.[0]?.departDate:a.departDate)||"").localeCompare((b.flightType==="Multi-City"?b.segments?.[0]?.departDate:b.departDate)||""));
@@ -275,17 +278,18 @@ function Expenses({data,setData}){
     if(fd&&logYear(fd)!==CY) return s;
     return s+(r.legs||[]).reduce((sf,l)=>sf+Number(l.flightCost||0),0)+(r.accommodations||[]).reduce((sa,a)=>sa+Number(a.cost||0),0);
   },0);
-  const liveExpenses = data.expenses.map(e=>{
-    if(e.name==="Subscriptions") return {...e,amount:subTotal,live:true};
-    if(e.name==="Certifications") return {...e,amount:certTotal,live:true};
-    if(e.name==="Car Maintenance") return {...e,amount:carTotal,live:true};
-    if(e.name==="Leisure") return {...e,amount:leisureTotal,live:true};
-    return e;
-  });
-  const total = liveExpenses.reduce((s,e)=>s+Number(e.amount||0),0);
-  const fixedTotal = liveExpenses.filter(e=>e.category==="Fixed").reduce((s,e)=>s+Number(e.amount||0),0);
-  const varTotal = liveExpenses.filter(e=>e.category!=="Fixed").reduce((s,e)=>s+Number(e.amount||0),0);
-  const baseShown = liveExpenses.filter(e=>cardFilter==="Fixed"?e.category==="Fixed":cardFilter==="Variable"?e.category!=="Fixed":true);
+  const AUTO_EXPENSES = [
+    {id:"auto-subs",    name:"Subscriptions",     category:"Variable", amount:subTotal,         live:true},
+    {id:"auto-certs",   name:"Certifications",    category:"Variable", amount:certTotal,        live:true},
+    {id:"auto-docs",    name:"Personal Documents",category:"Variable", amount:personalDocsTotal,live:true},
+    {id:"auto-car",     name:"Car Maintenance",   category:"Variable", amount:carTotal,         live:true},
+    {id:"auto-leisure", name:"Leisure & Travel",  category:"Variable", amount:leisureTotal,     live:true},
+  ];
+  const allExpenses = [...AUTO_EXPENSES, ...data.expenses];
+  const total = allExpenses.reduce((s,e)=>s+Number(e.amount||0),0);
+  const fixedTotal = data.expenses.filter(e=>e.category==="Fixed").reduce((s,e)=>s+Number(e.amount||0),0);
+  const varTotal = AUTO_EXPENSES.reduce((s,e)=>s+Number(e.amount||0),0) + data.expenses.filter(e=>e.category!=="Fixed").reduce((s,e)=>s+Number(e.amount||0),0);
+  const baseShown = allExpenses.filter(e=>cardFilter==="Fixed"?e.category==="Fixed":cardFilter==="Variable"?e.category!=="Fixed":true);
   const shown = baseShown.filter(e=>!search||e.name.toLowerCase().includes(search.toLowerCase()));
   function save(){const entry={...form,amount:Number(form.amount||0)};setData(d=>({...d,expenses:modal==="add"?[...d.expenses,{...entry,id:nextId(d.expenses)}]:d.expenses.map(e=>e.id===form.id?entry:e)}));setModal(null);}
   return(
@@ -297,9 +301,9 @@ function Expenses({data,setData}){
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// {CY} ANNUAL EXPENSE TRACKER</div>
       <SearchBar value={search} onChange={setSearch} placeholder="Search expenses..."/>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(100px, 1fr))",gap:10,marginBottom:14}}>
-        <StatCard label={`${CY} Total`} value={fmt(total)} color={T.red} onClick={()=>setCardFilter(f=>f==="All"?"All":"All")} active={cardFilter==="All"}/>
-        <StatCard label="Fixed" value={fmt(fixedTotal)} color={T.purple} onClick={()=>setCardFilter(f=>f==="Fixed"?"All":"Fixed")} active={cardFilter==="Fixed"}/>
-        <StatCard label="Variable" value={fmt(varTotal)} color={T.yellow} onClick={()=>setCardFilter(f=>f==="Variable"?"All":"Variable")} active={cardFilter==="Variable"}/>
+        <StatCard label={`${CY} Total`} value={fmt(total)} sub={`${allExpenses.length} entries`} color={T.red} onClick={()=>setCardFilter("All")} active={cardFilter==="All"}/>
+        <StatCard label="Fixed" value={fmt(fixedTotal)} sub={`${data.expenses.filter(e=>e.category==="Fixed").length} entries`} color={T.purple} onClick={()=>setCardFilter(f=>f==="Fixed"?"All":"Fixed")} active={cardFilter==="Fixed"}/>
+        <StatCard label="Variable" value={fmt(varTotal)} sub={`${allExpenses.filter(e=>e.category!=="Fixed").length} entries`} color={T.yellow} onClick={()=>setCardFilter(f=>f==="Variable"?"All":"Variable")} active={cardFilter==="Variable"}/>
       </div>
       <ListToggle collapsed={collapsed} onToggle={()=>setCollapsed(c=>!c)} count={shown.length} label="Expenses"/>
       {!collapsed&&(
