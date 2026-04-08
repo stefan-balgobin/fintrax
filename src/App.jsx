@@ -1234,7 +1234,7 @@ function Investments({data,setData}){
 
 import { createClient } from "@supabase/supabase-js";
 
-const TEST_MODE = true; // ← set to true to test locally with empty data, false for real app
+const TEST_MODE = false; // ← set to true to test locally with empty data, false for real app
 
 const SUPABASE_URL = "https://cpsyxvygcmmjxthvbiqd.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_1ilCgCSAMw6tVGTtLemgsw_jOvcrwx8";
