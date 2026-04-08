@@ -56,14 +56,29 @@ const INIT = {
   investments:[],
 };
 
+// ── PERSIST UI TOGGLES TO LOCALSTORAGE ───────────────────────────────────────
+function useLocalState(key,init){
+  const [val,setVal] = useState(()=>{
+    try{const v=localStorage.getItem("fintrax_ui_"+key);return v!==null?JSON.parse(v):init;}catch{return init;}
+  });
+  const set = React.useCallback(v=>{
+    setVal(prev=>{
+      const next=typeof v==="function"?v(prev):v;
+      try{localStorage.setItem("fintrax_ui_"+key,JSON.stringify(next));}catch{}
+      return next;
+    });
+  },[key]);
+  return [val,set];
+}
+
 // ── SHARED COMPONENTS ─────────────────────────────────────────────────────────
 function StatCard({label,value,sub,color,onClick,active}){
   const T = useT(); const S = useS();
   return(
-    <div onClick={onClick} style={{...S.card,marginBottom:0,borderColor:color+(active?"99":"40"),boxShadow:`0 0 14px ${color}${active?"30":"10"}`,cursor:onClick?"pointer":"default",overflow:"hidden",minWidth:0}}>
-      <div style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",marginBottom:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{label}</div>
-      <div style={{fontSize:18,fontWeight:700,color,lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",minWidth:0}}>{value}</div>
-      {sub&&<div style={{fontSize:11,color:T.muted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sub}</div>}
+    <div onClick={onClick} style={{...S.card,marginBottom:0,borderColor:color+(active?"99":"40"),boxShadow:`0 0 14px ${color}${active?"30":"10"}`,cursor:onClick?"pointer":"default",overflow:"visible",minWidth:0}}>
+      <div style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",marginBottom:4,lineHeight:1.4,wordBreak:"break-word"}}>{label}</div>
+      <div style={{fontSize:18,fontWeight:700,color,lineHeight:1.2,wordBreak:"break-word",minWidth:0}}>{value}</div>
+      {sub&&<div style={{fontSize:11,color:T.muted,marginTop:2,lineHeight:1.3,wordBreak:"break-word"}}>{sub}</div>}
       {active&&<div style={{fontSize:9,color,letterSpacing:2,marginTop:4}}>● ACTIVE</div>}
     </div>
   );
@@ -346,7 +361,7 @@ function Expenses({data,setData}){
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
   const [search,setSearch] = useState("");
-  const [collapsed,setCollapsed] = useState(false);
+  const [collapsed,setCollapsed] = useLocalState("expenses_collapsed",false);
   const [cardFilter,setCardFilter] = useState("All");
   const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
   const parseM = str=>{if(!str)return[];return str.split(",").map(m=>{const p=m.trim().split(":");return{name:p[0]?.trim()||"",paid:(p[1]?.trim()||"").toLowerCase()==="paid",date:p[2]?.trim()||""};}).filter(m=>m.name);};
@@ -430,7 +445,7 @@ function Certifications({data,setData}){
   const [form,setForm] = useState({});
   const [yearFilter,setYearFilter] = useState("All");
   const [search,setSearch] = useState("");
-  const [collapsed,setCollapsed] = useState(false);
+  const [collapsed,setCollapsed] = useLocalState("certs_collapsed",false);
   const [cardFilter,setCardFilter] = useState("All");
   const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
   const {upload,download,remove} = useFiles("certs",setData);
@@ -517,7 +532,7 @@ function PersonalDocs({data,setData}){
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
   const [search,setSearch] = useState("");
-  const [collapsed,setCollapsed] = useState(false);
+  const [collapsed,setCollapsed] = useLocalState("docs_collapsed",false);
   const [qFilter,setQFilter] = useState("All");
   const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
   const {upload,download,remove} = useFiles("personalDocs",setData);
@@ -588,7 +603,7 @@ function Subscriptions({data,setData}){
   const [form,setForm] = useState({});
   const [formMembers,setFormMembers] = useState([]);
   const [search,setSearch] = useState("");
-  const [collapsed,setCollapsed] = useState(false);
+  const [collapsed,setCollapsed] = useLocalState("subs_collapsed",false);
   const [mOpen,setMOpen] = useState({});
   const [editM,setEditM] = useState({});
   const [cardFilter,setCardFilter] = useState("All");
@@ -754,8 +769,8 @@ function CarMaintenance({data,setData}){
   const [fAction,setFAction] = useState("All");
   const [fVehicle,setFVehicle] = useState("All");
   const [fYear,setFYear] = useState("All");
-  const [logCollapsed,setLogCollapsed] = useState(false);
-  const [vehiclesOpen,setVehiclesOpen] = useState(true);
+  const [logCollapsed,setLogCollapsed] = useLocalState("car_log_collapsed",false);
+  const [vehiclesOpen,setVehiclesOpen] = useLocalState("car_vehicles_open",true);
   const [expV,setExpV] = useState({});
   const [confDelV,setConfDelV] = useState(null);
   const [vModal,setVModal] = useState(false);
@@ -1171,7 +1186,7 @@ function Leisure({data,setData}){
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
   const [search,setSearch] = useState("");
-  const [collapsed,setCollapsed] = useState(false);
+  const [collapsed,setCollapsed] = useLocalState("leisure_collapsed",false);
   const [activeTrip,setActiveTrip] = useState(null);
   const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
   const statColors = {Booked:T.accent,Planning:T.muted};
@@ -1245,7 +1260,7 @@ function Investments({data,setData}){
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
   const [search,setSearch] = useState("");
-  const [collapsed,setCollapsed] = useState(false);
+  const [collapsed,setCollapsed] = useLocalState("investments_collapsed",false);
   const [cardFilter,setCardFilter] = useState("All");
   const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
   const total = data.investments.reduce((s,r)=>s+Number(r.value||0),0);
