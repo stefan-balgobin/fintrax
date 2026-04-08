@@ -146,6 +146,7 @@ function ListToggle({collapsed,onToggle,count,label}){
 function FilesSection({files,onUpload,onDownload,onRemove}){
   const T = useT(); const S = useS();
   const [open,setOpen] = useState(false);
+  const [confirmFile,setConfirmFile] = useState(null);
   const list = files||[];
   return(
     <div style={{borderTop:`1px solid ${T.border}30`,paddingTop:10,marginTop:4}}>
@@ -164,11 +165,14 @@ function FilesSection({files,onUpload,onDownload,onRemove}){
               </div>
               <div style={{display:"flex",gap:6,marginLeft:8,flexShrink:0}}>
                 <button style={{...S.btn(T.green),padding:"4px 10px",fontSize:11}} onClick={()=>onDownload(f)}>⬇</button>
-                <button style={{...S.btn(T.red),padding:"4px 8px",fontSize:11}} onClick={()=>onRemove(f.name)}>✕</button>
+                <button style={{...S.btn(T.red),padding:"4px 8px",fontSize:11}} onClick={()=>setConfirmFile(f.name)}>✕</button>
               </div>
             </div>
           ))}
         </div>
+      )}
+      {confirmFile&&(
+        <ConfirmDelete label={confirmFile} onCancel={()=>setConfirmFile(null)} onConfirm={()=>{onRemove(confirmFile);setConfirmFile(null);}}/>
       )}
     </div>
   );
@@ -1230,7 +1234,7 @@ function Investments({data,setData}){
 
 import { createClient } from "@supabase/supabase-js";
 
-const TEST_MODE = false; // ← set to true to test locally with empty data, false for real app
+const TEST_MODE = true; // ← set to true to test locally with empty data, false for real app
 
 const SUPABASE_URL = "https://cpsyxvygcmmjxthvbiqd.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_1ilCgCSAMw6tVGTtLemgsw_jOvcrwx8";
