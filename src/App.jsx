@@ -208,41 +208,45 @@ function useFiles(key,setData){
 }
 
 // ── OVERVIEW ──────────────────────────────────────────────────────────────────
-function Overview({data}){
+function Overview({data, enabledPages}){
   const T = useT(); const S = useS();
+  const ep = enabledPages||{};
 
-  // ── calculations (mirror Expenses page logic) ──
+  // ── calculations (mirror Expenses page logic, gated by enabledPages) ──
   const parseM = str=>{if(!str)return[];return str.split(",").map(m=>{const p=m.trim().split(":");return{name:p[0]?.trim()||"",paid:(p[1]?.trim()||"").toLowerCase()==="paid",date:p[2]?.trim()||""};}).filter(m=>m.name);};
   const subUserCost = sub=>{ const members=parseM(sub.members); const amt=Number(sub.amount||0); return members.length>0?amt/members.length:amt; };
-  const subTotal     = data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?subUserCost(sub):subUserCost(sub)*12),0);
-  const certTotal    = data.certs.filter(c=>expiryYear(c.expiry)===CY).reduce((s,c)=>s+Number(c.costTTD||0),0);
-  const docsTotal    = data.personalDocs.filter(d=>expiryYear(d.expiry)===CY).reduce((s,d)=>s+Number(d.cost||0),0);
-  const carTotal     = data.carLog.filter(r=>logYear(r.date)===CY).reduce((s,r)=>s+Number(r.cost||0),0);
-  const leisureTotal = data.leisure.reduce((s,r)=>{
+  const subTotal     = ep.subscriptions!==false ? data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?subUserCost(sub):subUserCost(sub)*12),0) : 0;
+  const certTotal    = ep.certs!==false ? data.certs.filter(c=>expiryYear(c.expiry)===CY).reduce((s,c)=>s+Number(c.costTTD||0),0) : 0;
+  const docsTotal    = ep.personal!==false ? data.personalDocs.filter(d=>expiryYear(d.expiry)===CY).reduce((s,d)=>s+Number(d.cost||0),0) : 0;
+  const carTotal     = ep.car!==false ? data.carLog.filter(r=>logYear(r.date)===CY).reduce((s,r)=>s+Number(r.cost||0),0) : 0;
+  const leisureTotal = ep.leisure!==false ? data.leisure.reduce((s,r)=>{
     const legs=(r.legs||[]).slice().sort((a,b)=>((a.flightType==="Multi-City"?a.segments?.[0]?.departDate:a.departDate)||"").localeCompare((b.flightType==="Multi-City"?b.segments?.[0]?.departDate:b.departDate)||""));
     const fd=legs.length>0?(legs[0].flightType==="Multi-City"?legs[0].segments?.[0]?.departDate:legs[0].departDate):null;
     if(fd&&logYear(fd)!==CY) return s;
     return s+(r.legs||[]).reduce((sf,l)=>sf+Number(l.flightCost||0),0)+(r.accommodations||[]).reduce((sa,a)=>sa+Number(a.cost||0),0);
-  },0);
+  },0) : 0;
   const manualTotal  = data.expenses.reduce((s,e)=>s+Number(e.amount||0),0);
   const totalCY      = subTotal+certTotal+docsTotal+carTotal+leisureTotal+manualTotal;
   const totalInv     = data.investments.reduce((s,r)=>s+Number(r.value||0),0);
   const monthsElapsed= new Date().getMonth()+1;
   const monthlyAvg   = totalCY/monthsElapsed;
 
-  // ── alerts & upcoming ──
-  const alerts = [...data.certs.map(c=>({name:c.name,expiry:c.expiry,type:"Cert"})),...data.personalDocs.map(d=>({name:d.type,expiry:d.expiry,type:"Doc"}))].filter(d=>urgencyColor(timeLeft(d.expiry),T)!==T.green).sort((a,b)=>new Date(a.expiry)-new Date(b.expiry));
-  const soon30 = data.subscriptions.filter(s=>{if(!s.renews)return false;const diff=new Date(s.renews)-new Date();return diff>0&&diff<=30*86400000;}).sort((a,b)=>new Date(a.renews)-new Date(b.renews));
+  // ── alerts & upcoming (only from enabled pages) ──
+  const alerts = [
+    ...(ep.certs!==false ? data.certs.map(c=>({name:c.name,expiry:c.expiry,type:"Cert"})) : []),
+    ...(ep.personal!==false ? data.personalDocs.map(d=>({name:d.type,expiry:d.expiry,type:"Doc"})) : []),
+  ].filter(d=>urgencyColor(timeLeft(d.expiry),T)!==T.green).sort((a,b)=>new Date(a.expiry)-new Date(b.expiry));
+  const soon30 = ep.subscriptions!==false ? data.subscriptions.filter(s=>{if(!s.renews)return false;const diff=new Date(s.renews)-new Date();return diff>0&&diff<=30*86400000;}).sort((a,b)=>new Date(a.renews)-new Date(b.renews)) : [];
 
-  // ── spending breakdown rows ──
+  // ── spending breakdown rows (only enabled pages) ──
   const breakdown = [
-    {label:"Subscriptions",   amount:subTotal,     color:T.accent},
-    {label:"Certifications",  amount:certTotal,    color:T.yellow},
-    {label:"Personal Docs",   amount:docsTotal,    color:T.purple},
-    {label:"Car Maintenance", amount:carTotal,     color:T.green},
-    {label:"Leisure & Travel",amount:leisureTotal, color:T.red},
+    ep.subscriptions!==false && {label:"Subscriptions",   amount:subTotal,     color:T.accent},
+    ep.certs!==false          && {label:"Certifications",  amount:certTotal,    color:T.yellow},
+    ep.personal!==false       && {label:"Personal Docs",   amount:docsTotal,    color:T.purple},
+    ep.car!==false            && {label:"Car Maintenance", amount:carTotal,     color:T.green},
+    ep.leisure!==false        && {label:"Leisure & Travel",amount:leisureTotal, color:T.red},
     ...data.expenses.map(e=>({label:e.name,amount:Number(e.amount||0),color:e.category==="Fixed"?T.purple:T.muted})),
-  ].filter(r=>r.amount>0);
+  ].filter(Boolean).filter(r=>r.amount>0);
 
   const Section = ({title,color,children})=>(
     <div style={{...S.card,padding:"14px 16px"}}>
@@ -330,7 +334,7 @@ function Overview({data}){
       )}
 
       {/* ── portfolio snapshot ── */}
-      {data.investments.length>0&&(
+      {ep.investments!==false&&data.investments.length>0&&(
         <Section title="Portfolio Snapshot" color={T.green}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <span style={{fontSize:22,fontWeight:700,color:T.green}}>{fmt(totalInv)}</span>
@@ -356,8 +360,9 @@ function Overview({data}){
 }
 
 // ── EXPENSES ──────────────────────────────────────────────────────────────────
-function Expenses({data,setData}){
+function Expenses({data,setData,enabledPages}){
   const T = useT(); const S = useS();
+  const ep = enabledPages||{};
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
   const [search,setSearch] = useState("");
@@ -366,23 +371,23 @@ function Expenses({data,setData}){
   const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
   const parseM = str=>{if(!str)return[];return str.split(",").map(m=>{const p=m.trim().split(":");return{name:p[0]?.trim()||"",paid:(p[1]?.trim()||"").toLowerCase()==="paid",date:p[2]?.trim()||""};}).filter(m=>m.name);};
   const subUserCost = sub=>{ const members=parseM(sub.members); const amt=Number(sub.amount||0); return members.length>0?amt/members.length:amt; };
-  const subTotal = data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?subUserCost(sub):subUserCost(sub)*12),0);
-  const certTotal = data.certs.filter(c=>expiryYear(c.expiry)===CY).reduce((s,c)=>s+Number(c.costTTD||0),0);
-  const personalDocsTotal = data.personalDocs.filter(d=>expiryYear(d.expiry)===CY).reduce((s,d)=>s+Number(d.cost||0),0);
-  const carTotal = data.carLog.filter(r=>logYear(r.date)===CY).reduce((s,r)=>s+Number(r.cost||0),0);
-  const leisureTotal = data.leisure.reduce((s,r)=>{
+  const subTotal = ep.subscriptions!==false ? data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?subUserCost(sub):subUserCost(sub)*12),0) : 0;
+  const certTotal = ep.certs!==false ? data.certs.filter(c=>expiryYear(c.expiry)===CY).reduce((s,c)=>s+Number(c.costTTD||0),0) : 0;
+  const personalDocsTotal = ep.personal!==false ? data.personalDocs.filter(d=>expiryYear(d.expiry)===CY).reduce((s,d)=>s+Number(d.cost||0),0) : 0;
+  const carTotal = ep.car!==false ? data.carLog.filter(r=>logYear(r.date)===CY).reduce((s,r)=>s+Number(r.cost||0),0) : 0;
+  const leisureTotal = ep.leisure!==false ? data.leisure.reduce((s,r)=>{
     const legs=(r.legs||[]).slice().sort((a,b)=>((a.flightType==="Multi-City"?a.segments?.[0]?.departDate:a.departDate)||"").localeCompare((b.flightType==="Multi-City"?b.segments?.[0]?.departDate:b.departDate)||""));
     const fd=legs.length>0?(legs[0].flightType==="Multi-City"?legs[0].segments?.[0]?.departDate:legs[0].departDate):null;
     if(fd&&logYear(fd)!==CY) return s;
     return s+(r.legs||[]).reduce((sf,l)=>sf+Number(l.flightCost||0),0)+(r.accommodations||[]).reduce((sa,a)=>sa+Number(a.cost||0),0);
-  },0);
+  },0) : 0;
   const AUTO_EXPENSES = [
-    {id:"auto-subs",    name:"Subscriptions",     category:"Variable", amount:subTotal,         live:true},
-    {id:"auto-certs",   name:"Certifications",    category:"Variable", amount:certTotal,        live:true},
-    {id:"auto-docs",    name:"Personal Documents",category:"Variable", amount:personalDocsTotal,live:true},
-    {id:"auto-car",     name:"Car Maintenance",   category:"Variable", amount:carTotal,         live:true},
-    {id:"auto-leisure", name:"Leisure & Travel",  category:"Variable", amount:leisureTotal,     live:true},
-  ];
+    ep.subscriptions!==false && {id:"auto-subs",    name:"Subscriptions",     category:"Variable", amount:subTotal,         live:true},
+    ep.certs!==false          && {id:"auto-certs",   name:"Certifications",    category:"Variable", amount:certTotal,        live:true},
+    ep.personal!==false       && {id:"auto-docs",    name:"Personal Documents",category:"Variable", amount:personalDocsTotal,live:true},
+    ep.car!==false            && {id:"auto-car",     name:"Car Maintenance",   category:"Variable", amount:carTotal,         live:true},
+    ep.leisure!==false        && {id:"auto-leisure", name:"Leisure & Travel",  category:"Variable", amount:leisureTotal,     live:true},
+  ].filter(Boolean);
   const allExpenses = [...AUTO_EXPENSES, ...data.expenses];
   const total = allExpenses.reduce((s,e)=>s+Number(e.amount||0),0);
   const fixedTotal = data.expenses.filter(e=>e.category==="Fixed").reduce((s,e)=>s+Number(e.amount||0),0);
@@ -1780,7 +1785,7 @@ export default function App(){
 
       {/* ── PAGE CONTENT ── */}
       <div style={{maxWidth:700,margin:"0 auto",padding:"20px 14px 90px"}}>
-        <Page data={data} setData={setDataAndSave}/>
+        <Page data={data} setData={setDataAndSave} enabledPages={enabledPages}/>
       </div>
 
       {/* ── EXPANDED BOTTOM NAV (More tray) ── */}
