@@ -248,17 +248,22 @@ function Overview({data, enabledPages}){
     ...data.expenses.map(e=>({label:e.name,amount:Number(e.amount||0),color:e.category==="Fixed"?T.purple:T.muted})),
   ].filter(Boolean).filter(r=>r.amount>0);
 
-  const Section = ({title,color,children})=>(
-    <div style={{...S.card,padding:"14px 16px"}}>
-      <div style={{fontSize:10,letterSpacing:2,color:color||T.accent,textTransform:"uppercase",fontWeight:700,marginBottom:12}}>{title}</div>
-      {children}
+  const showTotalSpend    = ep.expenses!==false;
+  const showSubs          = ep.subscriptions!==false;
+  const showAlerts        = ep.certs!==false||ep.personal!==false;
+  const showInvCard       = ep.investments!==false;
+  const [breakdownOpen,   setBreakdownOpen]   = useLocalState("overview_breakdown_open",true);
+  const [invSnapshotOpen, setInvSnapshotOpen] = useLocalState("overview_inv_snapshot_open",true);
+
+  const Section = ({title,color,onToggle,collapsed,children})=>(
+    <div style={{...S.card,padding:"14px 16px",marginBottom:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:collapsed?0:12}}>
+        <div style={{fontSize:10,letterSpacing:2,color:color||T.accent,textTransform:"uppercase",fontWeight:700}}>{title}</div>
+        {onToggle&&<button onClick={onToggle} style={{...S.outlineBtn(false),padding:"3px 10px",fontSize:11}}>{collapsed?"▼ Show":"▲ Hide"}</button>}
+      </div>
+      {!collapsed&&children}
     </div>
   );
-
-  const showTotalSpend  = ep.expenses!==false;
-  const showSubs        = ep.subscriptions!==false;
-  const showAlerts      = ep.certs!==false||ep.personal!==false;
-  const showPortfolioCard = ep.investments!==false;
 
   return(
     <div>
@@ -271,14 +276,14 @@ function Overview({data, enabledPages}){
       {/* ── key metrics ── */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(155px,1fr))",gap:10,marginBottom:14}}>
         {showTotalSpend&&<StatCard label={`${CY} Total Spend`}  value={fmt(totalCY)}    sub={`avg ${fmt(monthlyAvg)}/mo`} color={T.red}/>}
-        {showPortfolioCard&&<StatCard label="Portfolio Value"   value={fmt(totalInv)}   sub={`${data.investments.length} holding${data.investments.length!==1?"s":""}`} color={T.green}/>}
-        {showSubs&&<StatCard label="Subs Cost/yr"               value={fmt(subTotal)}   sub={`${data.subscriptions.length} active`} color={T.accent}/>}
-        {showAlerts&&<StatCard label="Expiry Alerts"            value={alerts.length}   sub={alerts.length>0?`${alerts.filter(a=>timeLeft(a.expiry)==="Expired").length} expired`:"all clear"} color={alerts.length>0?T.yellow:T.green}/>}
+        {showInvCard&&<StatCard label="Investments Value"        value={fmt(totalInv)}   sub={`${data.investments.length} holding${data.investments.length!==1?"s":""}`} color={T.green}/>}
+        {showSubs&&<StatCard label="Subs Cost/yr"                value={fmt(subTotal)}   sub={`${data.subscriptions.length} active`} color={T.accent}/>}
+        {showAlerts&&<StatCard label="Expiry Alerts"             value={alerts.length}   sub={alerts.length>0?`${alerts.filter(a=>timeLeft(a.expiry)==="Expired").length} expired`:"all clear"} color={alerts.length>0?T.yellow:T.green}/>}
       </div>
 
       {/* ── spending breakdown ── */}
       {showTotalSpend&&breakdown.length>0&&(
-        <Section title={`${CY} Spending Breakdown`}>
+        <Section title={`${CY} Spending Breakdown`} onToggle={()=>setBreakdownOpen(o=>!o)} collapsed={!breakdownOpen}>
           {breakdown.map((r,i)=>{
             const pct=totalCY>0?(r.amount/totalCY)*100:0;
             return(
@@ -305,7 +310,7 @@ function Overview({data, enabledPages}){
 
       {/* ── alerts + upcoming renewals ── */}
       {(alerts.length>0||soon30.length>0)&&(
-        <div style={{display:"grid",gridTemplateColumns:alerts.length>0&&soon30.length>0?"1fr 1fr":"1fr",gap:10,marginBottom:0}}>
+        <div style={{display:"grid",gridTemplateColumns:alerts.length>0&&soon30.length>0?"1fr 1fr":"1fr",gap:10,marginBottom:10}}>
           {alerts.length>0&&(
             <Section title="⚠ Expiry Alerts" color={T.yellow}>
               {alerts.map((d,i)=>(
@@ -338,9 +343,9 @@ function Overview({data, enabledPages}){
         </div>
       )}
 
-      {/* ── portfolio snapshot ── */}
+      {/* ── investments snapshot ── */}
       {ep.investments!==false&&data.investments.length>0&&(
-        <Section title="Portfolio Snapshot" color={T.green}>
+        <Section title="Investments Snapshot" color={T.green} onToggle={()=>setInvSnapshotOpen(o=>!o)} collapsed={!invSnapshotOpen}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <span style={{fontSize:22,fontWeight:700,color:T.green}}>{fmt(totalInv)}</span>
             <span style={{fontSize:11,color:T.muted}}>{data.investments.length} holding{data.investments.length!==1?"s":""}</span>
