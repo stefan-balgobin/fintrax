@@ -270,7 +270,7 @@ function Expenses({data,setData}){
   const subUserCost = sub=>{ const members=parseM(sub.members); const amt=Number(sub.amount||0); return members.length>0?amt/members.length:amt; };
   const subTotal = data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?subUserCost(sub):subUserCost(sub)*12),0);
   const certTotal = data.certs.filter(c=>expiryYear(c.expiry)===CY).reduce((s,c)=>s+Number(c.costTTD||0),0);
-  const personalDocsTotal = data.personalDocs.filter(d=>logYear(d.issued)===CY).reduce((s,d)=>s+Number(d.cost||0),0);
+  const personalDocsTotal = data.personalDocs.filter(d=>expiryYear(d.expiry)===CY).reduce((s,d)=>s+Number(d.cost||0),0);
   const carTotal = data.carLog.filter(r=>logYear(r.date)===CY).reduce((s,r)=>s+Number(r.cost||0),0);
   const leisureTotal = data.leisure.reduce((s,r)=>{
     const legs=(r.legs||[]).slice().sort((a,b)=>((a.flightType==="Multi-City"?a.segments?.[0]?.departDate:a.departDate)||"").localeCompare((b.flightType==="Multi-City"?b.segments?.[0]?.departDate:b.departDate)||""));
