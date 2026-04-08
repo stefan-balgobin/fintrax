@@ -173,7 +173,7 @@ function FilesSection({files,onUpload,onDownload,onRemove}){
           </label>
           {list.length===0&&<div style={{fontSize:12,color:T.muted}}>No files yet.</div>}
           {list.map((f,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:T.bg,borderRadius:8,padding:"8px 10px",marginBottom:6}}>
+            <div key={`${f.name}-${i}`} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:T.bg,borderRadius:8,padding:"8px 10px",marginBottom:6}}>
               <div style={{minWidth:0,flex:1}}>
                 <div style={{color:T.text,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>
                 <div style={{color:T.muted,fontSize:10}}>{f.uploadedAt} · {(f.size/1024).toFixed(1)} KB</div>
@@ -1269,7 +1269,7 @@ function Investments({data,setData}){
   const etfPct = total>0?((etfTotal/total)*100).toFixed(1):"0";
   const stockPct = total>0?((stockTotal/total)*100).toFixed(1):"0";
   const baseShown = [...data.investments].sort((a,b)=>b.value-a.value).filter(r=>cardFilter==="ETF"?r.type==="ETF":cardFilter==="Stock"?r.type==="Stock":true);
-  const shown = baseShown.filter(r=>!search||r.ticker.toLowerCase().includes(search.toLowerCase())||r.type.toLowerCase().includes(search.toLowerCase()));
+  const shown = baseShown.filter(r=>!search||(r.ticker||"").toLowerCase().includes(search.toLowerCase())||(r.type||"").toLowerCase().includes(search.toLowerCase()));
   function save(){const entry={...form,value:Number(form.value||0)};setData(d=>({...d,investments:modal==="add"?[...d.investments,{...entry,id:nextId(d.investments)}]:d.investments.map(r=>r.id===form.id?entry:r)}));setModal(null);}
   const typeColor = t=>t==="ETF"?T.accent:t==="Stock"?T.purple:T.yellow;
   return(
@@ -1631,7 +1631,7 @@ export default function App(){
     saveSettings(darkMode, ne);
   }
 
-  const username = user?.user_metadata?.username||user?.email?.split("@")[0]||"User";
+  const username = user?.user_metadata?.username||user?.email?.split("@")?.[0]||"User";
   const visiblePages = ALL_PAGES.filter(p => enabledPages[p.id]);
   const Page = PAGE_COMPONENTS[active] || Overview;
 
