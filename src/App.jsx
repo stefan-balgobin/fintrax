@@ -75,10 +75,10 @@ function useLocalState(key,init){
 function StatCard({label,value,sub,color,onClick,active}){
   const T = useT(); const S = useS();
   return(
-    <div onClick={onClick} style={{...S.card,marginBottom:0,borderColor:color+(active?"99":"40"),boxShadow:`0 0 14px ${color}${active?"30":"10"}`,cursor:onClick?"pointer":"default",overflow:"visible",minWidth:0}}>
-      <div style={{fontSize:10,letterSpacing:2,color:T.muted,textTransform:"uppercase",marginBottom:4,lineHeight:1.4,wordBreak:"break-word"}}>{label}</div>
-      <div style={{fontSize:18,fontWeight:700,color,lineHeight:1.2,wordBreak:"break-word",minWidth:0}}>{value}</div>
-      {sub&&<div style={{fontSize:11,color:T.muted,marginTop:2,lineHeight:1.3,wordBreak:"break-word"}}>{sub}</div>}
+    <div onClick={onClick} style={{...S.card,marginBottom:0,borderColor:color+(active?"99":"40"),boxShadow:`0 0 14px ${color}${active?"30":"10"}`,cursor:onClick?"pointer":"default",overflow:"hidden",minWidth:0}}>
+      <div style={{fontSize:9,letterSpacing:1.5,color:T.muted,textTransform:"uppercase",marginBottom:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{label}</div>
+      <div style={{fontSize:18,fontWeight:700,color,lineHeight:1.2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{value}</div>
+      {sub&&<div style={{fontSize:11,color:T.muted,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{sub}</div>}
       {active&&<div style={{fontSize:9,color,letterSpacing:2,marginTop:4}}>● ACTIVE</div>}
     </div>
   );
@@ -260,7 +260,7 @@ function Overview({data}){
       </div>
 
       {/* ── key metrics ── */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(155px,1fr))",gap:10,marginBottom:14}}>
         <StatCard label={`${CY} Total Spend`}  value={fmt(totalCY)}    sub={`avg ${fmt(monthlyAvg)}/mo`} color={T.red}/>
         <StatCard label="Portfolio Value"       value={fmt(totalInv)}   sub={`${data.investments.length} holding${data.investments.length!==1?"s":""}`} color={T.green}/>
         <StatCard label="Subs Cost/yr"          value={fmt(subTotal)}   sub={`${data.subscriptions.length} active`} color={T.accent}/>
@@ -398,7 +398,7 @@ function Expenses({data,setData}){
       </div>
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// {CY} ANNUAL EXPENSE TRACKER</div>
       <SearchBar value={search} onChange={setSearch} placeholder="Search expenses..."/>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(100px, 1fr))",gap:10,marginBottom:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(155px, 1fr))",gap:10,marginBottom:14}}>
         <StatCard label={`${CY} Total`} value={fmt(total)} sub={`${allExpenses.length} entries`} color={T.red} onClick={()=>setCardFilter("All")} active={cardFilter==="All"}/>
         <StatCard label="Fixed" value={fmt(fixedTotal)} sub={`${data.expenses.filter(e=>e.category==="Fixed").length} entries`} color={T.purple} onClick={()=>setCardFilter(f=>f==="Fixed"?"All":"Fixed")} active={cardFilter==="Fixed"}/>
         <StatCard label="Variable" value={fmt(varTotal)} sub={`${allExpenses.filter(e=>e.category!=="Fixed").length} entries`} color={T.yellow} onClick={()=>setCardFilter(f=>f==="Variable"?"All":"Variable")} active={cardFilter==="Variable"}/>
@@ -472,7 +472,7 @@ function Certifications({data,setData}){
         <span style={{fontSize:11,color:T.muted}}>{yearFilter==="All"?`${data.certs.length} total`:`${shown.length} expiring ${yearFilter}`}</span>
       </div>
       {yearFilter==="All"?(
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(100px, 1fr))",gap:10,marginBottom:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(155px, 1fr))",gap:10,marginBottom:14}}>
           <StatCard label="Total" value={byYear.length} color={T.accent} onClick={()=>setCardFilter(f=>f==="TotalCerts"?"All":"TotalCerts")} active={cardFilter==="TotalCerts"}/>
           <StatCard label={`Exp. ${CY}`} value={expiringNow} color={T.yellow} onClick={()=>setCardFilter(f=>f==="ExpiringThisYear"?"All":"ExpiringThisYear")} active={cardFilter==="ExpiringThisYear"}/>
           <StatCard label="Cost TTD" value={fmt(totalCost)} color={T.red}/>
@@ -553,7 +553,7 @@ function PersonalDocs({data,setData}){
       </div>
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// CARDS, IDs & DOCUMENT TRACKER</div>
       <SearchBar value={search} onChange={setSearch} placeholder="Search documents..."/>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(100px, 1fr))",gap:10,marginBottom:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(155px, 1fr))",gap:10,marginBottom:14}}>
         <StatCard label="Total" value={data.personalDocs.length} color={T.accent} onClick={()=>setQFilter("All")} active={qFilter==="All"}/>
         <StatCard label="Expired" value={expiredCount} color={T.red} onClick={()=>setQFilter(q=>q==="Expired"?"All":"Expired")} active={qFilter==="Expired"}/>
         <StatCard label={`Exp. ${CY}`} value={expiringCount} color={T.yellow} onClick={()=>setQFilter(q=>q==="ExpiringThisYear"?"All":"ExpiringThisYear")} active={qFilter==="ExpiringThisYear"}/>
@@ -642,8 +642,8 @@ function Subscriptions({data,setData}){
       </div>
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// RECURRING SUBSCRIPTION MANAGER</div>
       <SearchBar value={search} onChange={setSearch} placeholder="Search subscriptions..."/>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(100px, 1fr))",gap:10,marginBottom:14}}>
-        <StatCard label="Total Yearly Subs Cost" value={fmt(annual)} sub={`${data.subscriptions.length} subscription${data.subscriptions.length!==1?"s":""}`} color={T.accent} onClick={()=>setCardFilter("All")} active={cardFilter==="All"}/>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(155px, 1fr))",gap:10,marginBottom:14}}>
+        <StatCard label="CY Subs Total" value={fmt(annual)} sub={`${data.subscriptions.length} subscription${data.subscriptions.length!==1?"s":""}`} color={T.accent} onClick={()=>setCardFilter("All")} active={cardFilter==="All"}/>
         <StatCard label="Annual Subs" value={fmt(annualTotal)} sub={`${annualSubs.length} sub${annualSubs.length!==1?"s":""}`} color={T.red} onClick={()=>setCardFilter(f=>f==="Annual"?"All":"Annual")} active={cardFilter==="Annual"}/>
         <StatCard label="Monthly Subs" value={fmt(monthlyTotal)} sub={`${monthlySubs.length} sub${monthlySubs.length!==1?"s":""}`} color={T.yellow} onClick={()=>setCardFilter(f=>f==="Monthly"?"All":"Monthly")} active={cardFilter==="Monthly"}/>
       </div>
@@ -844,7 +844,7 @@ function CarMaintenance({data,setData}){
           )}
         </div>
       )}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,marginBottom:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(155px, 1fr))",gap:10,marginBottom:14}}>
         <StatCard label="Total Spent" value={fmt(shownTotal)} color={T.red}/>
         <StatCard label="Log Entries" value={shown.length} color={T.accent}/>
       </div>
@@ -1107,7 +1107,7 @@ function TripDetail({trip,onBack,onSave}){
           {(autoStart||autoEnd)&&<span style={{fontSize:12,color:T.muted}}>{fmtDate(autoStart)||"?"} → {fmtDate(autoEnd)||"?"}</span>}
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(100px, 1fr))",gap:10,marginBottom:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(155px, 1fr))",gap:10,marginBottom:12}}>
         <StatCard label="Flights" value={fmt(totalF)} color={T.accent}/>
         <StatCard label="Stays" value={fmt(totalA)} color={T.purple}/>
         <StatCard label="Total" value={fmt(totalF+totalA)} color={T.green}/>
@@ -1208,7 +1208,7 @@ function Leisure({data,setData}){
       </div>
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// TRIPS & ACTIVITIES · Tap card for details</div>
       <SearchBar value={search} onChange={setSearch} placeholder="Search trips..."/>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,marginBottom:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(155px, 1fr))",gap:10,marginBottom:14}}>
         <StatCard label={`${CY} Trips`} value={cyTrips.length} color={T.accent}/>
         <StatCard label={`${CY} Trip Cost`} value={fmt(total)} color={T.green}/>
       </div>
@@ -1280,7 +1280,7 @@ function Investments({data,setData}){
       </div>
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// PORTFOLIO TRACKER</div>
       <SearchBar value={search} onChange={setSearch} placeholder="Search ticker or type..."/>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(100px, 1fr))",gap:10,marginBottom:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(155px, 1fr))",gap:10,marginBottom:14}}>
         <StatCard label="Total" value={fmt(total)} color={T.green} onClick={()=>setCardFilter(f=>f==="All"?"All":"All")} active={cardFilter==="All"}/>
         <StatCard label={`ETF ${etfPct}%`} value={fmt(etfTotal)} color={T.accent} onClick={()=>setCardFilter(f=>f==="ETF"?"All":"ETF")} active={cardFilter==="ETF"}/>
         <StatCard label={`Stock ${stockPct}%`} value={fmt(stockTotal)} color={T.purple} onClick={()=>setCardFilter(f=>f==="Stock"?"All":"Stock")} active={cardFilter==="Stock"}/>
