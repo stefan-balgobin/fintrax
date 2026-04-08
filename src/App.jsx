@@ -195,64 +195,147 @@ function useFiles(key,setData){
 // ── OVERVIEW ──────────────────────────────────────────────────────────────────
 function Overview({data}){
   const T = useT(); const S = useS();
-  const subTotal = data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?Number(sub.amount||0):Number(sub.amount||0)*12),0);
-  const certTotal = data.certs.filter(c=>expiryYear(c.expiry)===CY).reduce((s,c)=>s+Number(c.costTTD||0),0);
-  const carTotal = data.carLog.filter(r=>logYear(r.date)===CY).reduce((s,r)=>s+Number(r.cost||0),0);
+
+  // ── calculations (mirror Expenses page logic) ──
+  const parseM = str=>{if(!str)return[];return str.split(",").map(m=>{const p=m.trim().split(":");return{name:p[0]?.trim()||"",paid:(p[1]?.trim()||"").toLowerCase()==="paid",date:p[2]?.trim()||""};}).filter(m=>m.name);};
+  const subUserCost = sub=>{ const members=parseM(sub.members); const amt=Number(sub.amount||0); return members.length>0?amt/members.length:amt; };
+  const subTotal     = data.subscriptions.reduce((s,sub)=>s+(sub.type==="Annual"?subUserCost(sub):subUserCost(sub)*12),0);
+  const certTotal    = data.certs.filter(c=>expiryYear(c.expiry)===CY).reduce((s,c)=>s+Number(c.costTTD||0),0);
+  const docsTotal    = data.personalDocs.filter(d=>expiryYear(d.expiry)===CY).reduce((s,d)=>s+Number(d.cost||0),0);
+  const carTotal     = data.carLog.filter(r=>logYear(r.date)===CY).reduce((s,r)=>s+Number(r.cost||0),0);
   const leisureTotal = data.leisure.reduce((s,r)=>{
     const legs=(r.legs||[]).slice().sort((a,b)=>((a.flightType==="Multi-City"?a.segments?.[0]?.departDate:a.departDate)||"").localeCompare((b.flightType==="Multi-City"?b.segments?.[0]?.departDate:b.departDate)||""));
     const fd=legs.length>0?(legs[0].flightType==="Multi-City"?legs[0].segments?.[0]?.departDate:legs[0].departDate):null;
     if(fd&&logYear(fd)!==CY) return s;
-    const tF=(r.legs||[]).reduce((sf,l)=>sf+Number(l.flightCost||0),0);
-    const tA=(r.accommodations||[]).reduce((sa,a)=>sa+Number(a.cost||0),0);
-    return s+tF+tA;
+    return s+(r.legs||[]).reduce((sf,l)=>sf+Number(l.flightCost||0),0)+(r.accommodations||[]).reduce((sa,a)=>sa+Number(a.cost||0),0);
   },0);
-  const fixedExp = data.expenses.filter(e=>e.category==="Fixed"&&e.name!=="Subscriptions").reduce((s,e)=>s+Number(e.amount||0),0);
-  const personalExp = data.expenses.filter(e=>e.name==="Personal Expense").reduce((s,e)=>s+Number(e.amount||0),0);
-  const totalCYExp = fixedExp+subTotal+certTotal+carTotal+leisureTotal+personalExp;
-  const totalInv = data.investments.reduce((s,r)=>s+Number(r.value||0),0);
-  const alerts = [...data.certs.map(c=>({name:c.name,expiry:c.expiry})),...data.personalDocs.map(d=>({name:d.type,expiry:d.expiry}))].filter(d=>urgencyColor(timeLeft(d.expiry),T)!==T.green);
-  const liveExp = data.expenses.map(e=>{
-    if(e.name==="Subscriptions") return {...e,amount:subTotal};
-    if(e.name==="Certifications") return {...e,amount:certTotal};
-    if(e.name==="Car Maintenance") return {...e,amount:carTotal};
-    if(e.name==="Leisure") return {...e,amount:leisureTotal};
-    return e;
-  });
+  const manualTotal  = data.expenses.reduce((s,e)=>s+Number(e.amount||0),0);
+  const totalCY      = subTotal+certTotal+docsTotal+carTotal+leisureTotal+manualTotal;
+  const totalInv     = data.investments.reduce((s,r)=>s+Number(r.value||0),0);
+  const monthsElapsed= new Date().getMonth()+1;
+  const monthlyAvg   = totalCY/monthsElapsed;
+
+  // ── alerts & upcoming ──
+  const alerts = [...data.certs.map(c=>({name:c.name,expiry:c.expiry,type:"Cert"})),...data.personalDocs.map(d=>({name:d.type,expiry:d.expiry,type:"Doc"}))].filter(d=>urgencyColor(timeLeft(d.expiry),T)!==T.green).sort((a,b)=>new Date(a.expiry)-new Date(b.expiry));
+  const soon30 = data.subscriptions.filter(s=>{if(!s.renews)return false;const diff=new Date(s.renews)-new Date();return diff>0&&diff<=30*86400000;}).sort((a,b)=>new Date(a.renews)-new Date(b.renews));
+
+  // ── spending breakdown rows ──
+  const breakdown = [
+    {label:"Subscriptions",   amount:subTotal,     color:T.accent},
+    {label:"Certifications",  amount:certTotal,    color:T.yellow},
+    {label:"Personal Docs",   amount:docsTotal,    color:T.purple},
+    {label:"Car Maintenance", amount:carTotal,     color:T.green},
+    {label:"Leisure & Travel",amount:leisureTotal, color:T.red},
+    ...data.expenses.map(e=>({label:e.name,amount:Number(e.amount||0),color:e.category==="Fixed"?T.purple:T.muted})),
+  ].filter(r=>r.amount>0);
+
+  const Section = ({title,color,children})=>(
+    <div style={{...S.card,padding:"14px 16px"}}>
+      <div style={{fontSize:10,letterSpacing:2,color:color||T.accent,textTransform:"uppercase",fontWeight:700,marginBottom:12}}>{title}</div>
+      {children}
+    </div>
+  );
+
   return(
     <div>
-      <div style={{fontSize:18,fontWeight:700,letterSpacing:2,marginBottom:2}}>OVERVIEW</div>
-      <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:16}}>// FINANCE DASHBOARD · {CY}</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,marginBottom:12}}>
-        <StatCard label={`${CY} Expenses`} value={fmt(totalCYExp)} color={T.red}/>
-        <StatCard label="Portfolio" value={fmt(totalInv)} color={T.green}/>
-        <StatCard label="Subscriptions/yr" value={fmt(subTotal)} color={T.accent}/>
-        <StatCard label="Expiry Alerts" value={alerts.length} color={T.yellow}/>
+      {/* ── header ── */}
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:18,fontWeight:700,letterSpacing:2}}>OVERVIEW</div>
+        <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginTop:2}}>// FINANCE DASHBOARD · {CY} · {new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}</div>
       </div>
-      {alerts.length>0&&(
-        <div style={S.card}>
-          <div style={{fontSize:11,letterSpacing:2,color:T.yellow,textTransform:"uppercase",marginBottom:10}}>⚠ Expiry Alerts</div>
-          {alerts.map((d,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${T.border}20`}}>
-              <span style={{fontSize:13,flex:1,paddingRight:8}}>{d.name}</span>
-              <span style={S.badge(urgencyColor(timeLeft(d.expiry),T))}>{timeLeft(d.expiry)}</span>
-            </div>
-          ))}
+
+      {/* ── key metrics ── */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:14}}>
+        <StatCard label={`${CY} Total Spend`}  value={fmt(totalCY)}    sub={`avg ${fmt(monthlyAvg)}/mo`} color={T.red}/>
+        <StatCard label="Portfolio Value"       value={fmt(totalInv)}   sub={`${data.investments.length} holding${data.investments.length!==1?"s":""}`} color={T.green}/>
+        <StatCard label="Subs Cost/yr"          value={fmt(subTotal)}   sub={`${data.subscriptions.length} active`} color={T.accent}/>
+        <StatCard label="Expiry Alerts"         value={alerts.length}   sub={alerts.length>0?`${alerts.filter(a=>timeLeft(a.expiry)==="Expired").length} expired`:"all clear"} color={alerts.length>0?T.yellow:T.green}/>
+      </div>
+
+      {/* ── spending breakdown ── */}
+      {breakdown.length>0&&(
+        <Section title={`${CY} Spending Breakdown`}>
+          {breakdown.map((r,i)=>{
+            const pct=totalCY>0?(r.amount/totalCY)*100:0;
+            return(
+              <div key={i} style={{marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
+                  <span style={{fontSize:12,color:T.text}}>{r.label}</span>
+                  <div style={{display:"flex",gap:8,alignItems:"baseline"}}>
+                    <span style={{fontSize:11,color:T.muted}}>{pct.toFixed(1)}%</span>
+                    <span style={{fontSize:13,fontWeight:700,color:r.color}}>{fmt(r.amount)}</span>
+                  </div>
+                </div>
+                <div style={{height:6,background:T.border+"60",borderRadius:4,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:r.color,borderRadius:4,transition:"width 0.3s ease"}}/>
+                </div>
+              </div>
+            );
+          })}
+          <div style={{borderTop:`1px solid ${T.border}40`,marginTop:12,paddingTop:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:11,color:T.muted,letterSpacing:1}}>TOTAL</span>
+            <span style={{fontSize:16,fontWeight:700,color:T.red}}>{fmt(totalCY)}</span>
+          </div>
+        </Section>
+      )}
+
+      {/* ── alerts + upcoming renewals ── */}
+      {(alerts.length>0||soon30.length>0)&&(
+        <div style={{display:"grid",gridTemplateColumns:alerts.length>0&&soon30.length>0?"1fr 1fr":"1fr",gap:10,marginBottom:0}}>
+          {alerts.length>0&&(
+            <Section title="⚠ Expiry Alerts" color={T.yellow}>
+              {alerts.map((d,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${T.border}20`}}>
+                  <div style={{minWidth:0,flex:1,paddingRight:6}}>
+                    <div style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</div>
+                    <div style={{fontSize:10,color:T.muted}}>{d.type}</div>
+                  </div>
+                  <span style={{...S.badge(urgencyColor(timeLeft(d.expiry),T)),fontSize:10,flexShrink:0}}>{timeLeft(d.expiry)}</span>
+                </div>
+              ))}
+            </Section>
+          )}
+          {soon30.length>0&&(
+            <Section title="↻ Renewing Soon" color={T.accent}>
+              {soon30.map((s,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${T.border}20`}}>
+                  <div style={{minWidth:0,flex:1,paddingRight:6}}>
+                    <div style={{fontSize:12,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.service}</div>
+                    <div style={{fontSize:10,color:T.muted}}>{s.type}</div>
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    <div style={{fontSize:12,fontWeight:700,color:T.accent}}>{fmt(subUserCost(s))}</div>
+                    <div style={{fontSize:10,color:T.muted}}>{fmtDate(s.renews)}</div>
+                  </div>
+                </div>
+              ))}
+            </Section>
+          )}
         </div>
       )}
-      <div style={S.card}>
-        <div style={{fontSize:11,letterSpacing:2,color:T.accent,textTransform:"uppercase",marginBottom:12}}>{CY} Expense Breakdown</div>
-        {liveExp.map((e,i)=>{const pct=totalCYExp>0?(Number(e.amount)/totalCYExp)*100:0;return(
-          <div key={i} style={{marginBottom:12}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-              <span style={{fontSize:13}}>{e.name}</span>
-              <span style={{fontSize:13,color:T.accent,fontWeight:600}}>{fmt(e.amount)}</span>
-            </div>
-            <div style={{height:5,background:T.border,borderRadius:4}}>
-              <div style={{height:"100%",width:`${pct}%`,background:e.category==="Fixed"?T.purple:T.accent,borderRadius:4}}/>
-            </div>
+
+      {/* ── portfolio snapshot ── */}
+      {data.investments.length>0&&(
+        <Section title="Portfolio Snapshot" color={T.green}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <span style={{fontSize:22,fontWeight:700,color:T.green}}>{fmt(totalInv)}</span>
+            <span style={{fontSize:11,color:T.muted}}>{data.investments.length} holding{data.investments.length!==1?"s":""}</span>
           </div>
-        );})}
-      </div>
+          {data.investments.slice(0,5).map((inv,i)=>{
+            const pct=totalInv>0?(Number(inv.value||0)/totalInv)*100:0;
+            return(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${T.border}20`}}>
+                <span style={{fontSize:12,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingRight:8}}>{inv.name||inv.ticker||"—"}</span>
+                <div style={{display:"flex",gap:10,alignItems:"center",flexShrink:0}}>
+                  <span style={{fontSize:10,color:T.muted}}>{pct.toFixed(1)}%</span>
+                  <span style={{fontSize:12,fontWeight:700,color:T.green}}>{fmt(inv.value)}</span>
+                </div>
+              </div>
+            );
+          })}
+          {data.investments.length>5&&<div style={{fontSize:11,color:T.muted,marginTop:8,textAlign:"center"}}>+{data.investments.length-5} more holdings</div>}
+        </Section>
+      )}
     </div>
   );
 }
