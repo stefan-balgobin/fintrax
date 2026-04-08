@@ -255,6 +255,11 @@ function Overview({data, enabledPages}){
     </div>
   );
 
+  const showTotalSpend  = ep.expenses!==false;
+  const showSubs        = ep.subscriptions!==false;
+  const showAlerts      = ep.certs!==false||ep.personal!==false;
+  const showPortfolioCard = ep.investments!==false;
+
   return(
     <div>
       {/* ── header ── */}
@@ -265,14 +270,14 @@ function Overview({data, enabledPages}){
 
       {/* ── key metrics ── */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(155px,1fr))",gap:10,marginBottom:14}}>
-        <StatCard label={`${CY} Total Spend`}  value={fmt(totalCY)}    sub={`avg ${fmt(monthlyAvg)}/mo`} color={T.red}/>
-        <StatCard label="Portfolio Value"       value={fmt(totalInv)}   sub={`${data.investments.length} holding${data.investments.length!==1?"s":""}`} color={T.green}/>
-        <StatCard label="Subs Cost/yr"          value={fmt(subTotal)}   sub={`${data.subscriptions.length} active`} color={T.accent}/>
-        <StatCard label="Expiry Alerts"         value={alerts.length}   sub={alerts.length>0?`${alerts.filter(a=>timeLeft(a.expiry)==="Expired").length} expired`:"all clear"} color={alerts.length>0?T.yellow:T.green}/>
+        {showTotalSpend&&<StatCard label={`${CY} Total Spend`}  value={fmt(totalCY)}    sub={`avg ${fmt(monthlyAvg)}/mo`} color={T.red}/>}
+        {showPortfolioCard&&<StatCard label="Portfolio Value"   value={fmt(totalInv)}   sub={`${data.investments.length} holding${data.investments.length!==1?"s":""}`} color={T.green}/>}
+        {showSubs&&<StatCard label="Subs Cost/yr"               value={fmt(subTotal)}   sub={`${data.subscriptions.length} active`} color={T.accent}/>}
+        {showAlerts&&<StatCard label="Expiry Alerts"            value={alerts.length}   sub={alerts.length>0?`${alerts.filter(a=>timeLeft(a.expiry)==="Expired").length} expired`:"all clear"} color={alerts.length>0?T.yellow:T.green}/>}
       </div>
 
       {/* ── spending breakdown ── */}
-      {breakdown.length>0&&(
+      {showTotalSpend&&breakdown.length>0&&(
         <Section title={`${CY} Spending Breakdown`}>
           {breakdown.map((r,i)=>{
             const pct=totalCY>0?(r.amount/totalCY)*100:0;
