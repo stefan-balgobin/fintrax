@@ -158,6 +158,12 @@ function ListToggle({collapsed,onToggle,count,label}){
   );
 }
 
+const VIEWABLE = /\.(pdf|png|jpg|jpeg|gif|webp|svg|bmp)$/i;
+function openFile(f){
+  if(VIEWABLE.test(f.name)){window.open(f.dataUrl,"_blank","noopener");}
+  else{const a=document.createElement("a");a.href=f.dataUrl;a.download=f.name;a.click();}
+}
+
 function FilesSection({files,onUpload,onDownload,onRemove}){
   const T = useT(); const S = useS();
   const [open,setOpen] = useState(false);
@@ -175,7 +181,7 @@ function FilesSection({files,onUpload,onDownload,onRemove}){
           {list.map((f,i)=>(
             <div key={`${f.name}-${i}`} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:T.bg,borderRadius:8,padding:"8px 10px",marginBottom:6}}>
               <div style={{minWidth:0,flex:1}}>
-                <div style={{color:T.text,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div>
+                <div onClick={()=>openFile(f)} style={{color:T.accent,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer",textDecoration:"underline"}}>{f.name}</div>
                 <div style={{color:T.muted,fontSize:10}}>{f.uploadedAt} · {(f.size/1024).toFixed(1)} KB</div>
               </div>
               <div style={{display:"flex",gap:6,marginLeft:8,flexShrink:0}}>
@@ -1167,7 +1173,7 @@ function TripDetail({trip,onBack,onSave}){
             {form.files.length===0&&<div style={{fontSize:12,color:T.muted}}>No files yet.</div>}
             {form.files.map((f,fi)=>(
               <div key={fi} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:T.bg,borderRadius:8,padding:"8px 10px",marginBottom:6}}>
-                <div style={{minWidth:0,flex:1}}><div style={{color:T.text,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</div><div style={{color:T.muted,fontSize:10}}>{f.uploadedAt} · {(f.size/1024).toFixed(1)} KB</div></div>
+                <div style={{minWidth:0,flex:1}}><div onClick={()=>openFile(f)} style={{color:T.accent,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer",textDecoration:"underline"}}>{f.name}</div><div style={{color:T.muted,fontSize:10}}>{f.uploadedAt} · {(f.size/1024).toFixed(1)} KB</div></div>
                 <div style={{display:"flex",gap:6,marginLeft:8}}>
                   <button style={{...S.btn(T.green),padding:"4px 10px",fontSize:11}} onClick={()=>dlFile(f)}>⬇</button>
                   <button style={{...S.btn(T.red),padding:"4px 8px",fontSize:11}} onClick={()=>setForm(f2=>({...f2,files:f2.files.filter((_,j)=>j!==fi)}))}>✕</button>
