@@ -241,7 +241,7 @@ function Overview({data, enabledPages}){
   const alerts = [
     ...(ep.certs!==false ? data.certs.map(c=>({name:c.name,expiry:c.expiry,type:"Cert"})) : []),
     ...(ep.personal!==false ? data.personalDocs.map(d=>({name:d.type,expiry:d.expiry,type:"Doc"})) : []),
-  ].filter(d=>urgencyColor(timeLeft(d.expiry),T)!==T.green).sort((a,b)=>new Date(a.expiry)-new Date(b.expiry));
+  ].filter(d=>d.expiry&&urgencyColor(timeLeft(d.expiry),T)!==T.green).sort((a,b)=>new Date(a.expiry)-new Date(b.expiry));
   const soon30 = ep.subscriptions!==false ? data.subscriptions.filter(s=>{if(!s.renews)return false;const diff=new Date(s.renews)-new Date();return diff>0&&diff<=30*86400000;}).sort((a,b)=>new Date(a.renews)-new Date(b.renews)) : [];
 
   // ── spending breakdown rows (only enabled pages) ──
@@ -1215,7 +1215,7 @@ function Leisure({data,setData}){
   const getLast = leg=>{if(!leg)return null;if(leg.flightType==="Multi-City"){const s=leg.segments||[];return s[s.length-1]?.arriveDate||s[s.length-1]?.departDate||null;}if(leg.flightType==="Round Trip")return leg.returnArriveDate||leg.returnDate||null;return leg.arriveDate||leg.departDate||null;};
   const tripDates = r=>{const sl=[...(r.legs||[])].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));return{start:sl.length>0?getFirst(sl[0]):null,end:sl.length>0?getLast(sl[sl.length-1]):null};};
   const tripCost = r=>(r.legs||[]).reduce((s,l)=>s+Number(l.flightCost||0),0)+(r.accommodations||[]).reduce((s,a)=>s+Number(a.cost||0),0);
-  const cyTrips = data.leisure.filter(r=>{const fd=getFirst((r.legs||[]).sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""))[0]);return !fd||logYear(fd)===CY;});
+  const cyTrips = data.leisure.filter(r=>{const fd=getFirst([...(r.legs||[])].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""))[0]);return !fd||logYear(fd)===CY;});
   const total = cyTrips.reduce((s,r)=>s+tripCost(r),0);
   const shown = data.leisure.filter(r=>!search||r.trip.toLowerCase().includes(search.toLowerCase())||(r.status||"").toLowerCase().includes(search.toLowerCase()));
   function save(){const entry={...form,legs:form.legs||[],accommodations:form.accommodations||[],files:form.files||[]};setData(d=>({...d,leisure:modal==="add"?[...d.leisure,{...entry,id:nextId(d.leisure)}]:d.leisure.map(r=>r.id===form.id?entry:r)}));setModal(null);}
@@ -1302,7 +1302,7 @@ function Investments({data,setData}){
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// PORTFOLIO TRACKER</div>
       <SearchBar value={search} onChange={setSearch} placeholder="Search ticker or type..."/>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(155px, 1fr))",gap:10,marginBottom:14}}>
-        <StatCard label="Total" value={fmt(total)} color={T.green} onClick={()=>setCardFilter(f=>f==="All"?"All":"All")} active={cardFilter==="All"}/>
+        <StatCard label="Total" value={fmt(total)} color={T.green} onClick={()=>setCardFilter("All")} active={cardFilter==="All"}/>
         <StatCard label={`ETF ${etfPct}%`} value={fmt(etfTotal)} color={T.accent} onClick={()=>setCardFilter(f=>f==="ETF"?"All":"ETF")} active={cardFilter==="ETF"}/>
         <StatCard label={`Stock ${stockPct}%`} value={fmt(stockTotal)} color={T.purple} onClick={()=>setCardFilter(f=>f==="Stock"?"All":"Stock")} active={cardFilter==="Stock"}/>
       </div>
@@ -1670,12 +1670,6 @@ export default function App(){
       <div style={{fontSize:11,color:currentT.muted,letterSpacing:2}}>Loading your data...</div>
     </div>
   );
-
-  // Dynamic styles that depend on current theme
-  const DS = {
-    card: {...S.card, background:currentT.card, border:`1px solid ${currentT.border}`},
-    input: {...S.input, background:currentT.surface, border:`1px solid ${currentT.border}`, color:currentT.text},
-  };
 
   // Bottom nav — first 5 visible pages + More button
   const bottomPages = visiblePages.slice(0,5);
