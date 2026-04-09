@@ -281,33 +281,6 @@ function Overview({data, enabledPages}){
         {showAlerts&&<StatCard label="Expiry Alerts"             value={alerts.length}   sub={alerts.length>0?`${alerts.filter(a=>timeLeft(a.expiry)==="Expired").length} expired`:"all clear"} color={alerts.length>0?T.yellow:T.green}/>}
       </div>
 
-      {/* ── spending breakdown ── */}
-      {showTotalSpend&&breakdown.length>0&&(
-        <Section title={`${CY} Spending Breakdown`} onToggle={()=>setBreakdownOpen(o=>!o)} collapsed={!breakdownOpen}>
-          {breakdown.map((r,i)=>{
-            const pct=totalCY>0?(r.amount/totalCY)*100:0;
-            return(
-              <div key={i} style={{marginBottom:10}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
-                  <span style={{fontSize:12,color:T.text}}>{r.label}</span>
-                  <div style={{display:"flex",gap:8,alignItems:"baseline"}}>
-                    <span style={{fontSize:11,color:T.muted}}>{pct.toFixed(1)}%</span>
-                    <span style={{fontSize:13,fontWeight:700,color:r.color}}>{fmt(r.amount)}</span>
-                  </div>
-                </div>
-                <div style={{height:6,background:T.border+"60",borderRadius:4,overflow:"hidden"}}>
-                  <div style={{height:"100%",width:`${pct}%`,background:r.color,borderRadius:4,transition:"width 0.3s ease"}}/>
-                </div>
-              </div>
-            );
-          })}
-          <div style={{borderTop:`1px solid ${T.border}40`,marginTop:12,paddingTop:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontSize:11,color:T.muted,letterSpacing:1}}>TOTAL</span>
-            <span style={{fontSize:16,fontWeight:700,color:T.red}}>{fmt(totalCY)}</span>
-          </div>
-        </Section>
-      )}
-
       {/* ── alerts + upcoming renewals ── */}
       {(alerts.length>0||soon30.length>0)&&(
         <div style={{display:"grid",gridTemplateColumns:alerts.length>0&&soon30.length>0?"1fr 1fr":"1fr",gap:10,marginBottom:10}}>
@@ -341,6 +314,33 @@ function Overview({data, enabledPages}){
             </Section>
           )}
         </div>
+      )}
+
+      {/* ── spending breakdown ── */}
+      {showTotalSpend&&breakdown.length>0&&(
+        <Section title={`${CY} Spending Breakdown`} onToggle={()=>setBreakdownOpen(o=>!o)} collapsed={!breakdownOpen}>
+          {breakdown.map((r,i)=>{
+            const pct=totalCY>0?(r.amount/totalCY)*100:0;
+            return(
+              <div key={i} style={{marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
+                  <span style={{fontSize:12,color:T.text}}>{r.label}</span>
+                  <div style={{display:"flex",gap:8,alignItems:"baseline"}}>
+                    <span style={{fontSize:11,color:T.muted}}>{pct.toFixed(1)}%</span>
+                    <span style={{fontSize:13,fontWeight:700,color:r.color}}>{fmt(r.amount)}</span>
+                  </div>
+                </div>
+                <div style={{height:6,background:T.border+"60",borderRadius:4,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:r.color,borderRadius:4,transition:"width 0.3s ease"}}/>
+                </div>
+              </div>
+            );
+          })}
+          <div style={{borderTop:`1px solid ${T.border}40`,marginTop:12,paddingTop:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:11,color:T.muted,letterSpacing:1}}>TOTAL</span>
+            <span style={{fontSize:16,fontWeight:700,color:T.red}}>{fmt(totalCY)}</span>
+          </div>
+        </Section>
       )}
 
       {/* ── investments snapshot ── */}
@@ -377,7 +377,7 @@ function Expenses({data,setData,enabledPages}){
   const [form,setForm] = useState({});
   const [search,setSearch] = useState("");
   const [collapsed,setCollapsed] = useLocalState("expenses_collapsed",false);
-  const [cardFilter,setCardFilter] = useState("All");
+  const [cardFilter,setCardFilter] = useLocalState("expenses_card_filter","All");
   const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
   const parseM = str=>{if(!str)return[];return str.split(",").map(m=>{const p=m.trim().split(":");return{name:p[0]?.trim()||"",paid:(p[1]?.trim()||"").toLowerCase()==="paid",date:p[2]?.trim()||""};}).filter(m=>m.name);};
   const subUserCost = sub=>{ const members=parseM(sub.members); const amt=Number(sub.amount||0); return members.length>0?amt/members.length:amt; };
@@ -458,10 +458,10 @@ function Certifications({data,setData}){
   const T = useT(); const S = useS();
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
-  const [yearFilter,setYearFilter] = useState("All");
+  const [yearFilter,setYearFilter] = useLocalState("certs_year_filter","All");
   const [search,setSearch] = useState("");
   const [collapsed,setCollapsed] = useLocalState("certs_collapsed",false);
-  const [cardFilter,setCardFilter] = useState("All");
+  const [cardFilter,setCardFilter] = useLocalState("certs_card_filter","All");
   const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
   const {upload,download,remove} = useFiles("certs",setData);
   const allYears = [...new Set(data.certs.map(c=>expiryYear(c.expiry)).filter(Boolean))].sort();
@@ -548,7 +548,7 @@ function PersonalDocs({data,setData}){
   const [form,setForm] = useState({});
   const [search,setSearch] = useState("");
   const [collapsed,setCollapsed] = useLocalState("docs_collapsed",false);
-  const [qFilter,setQFilter] = useState("All");
+  const [qFilter,setQFilter] = useLocalState("docs_q_filter","All");
   const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
   const {upload,download,remove} = useFiles("personalDocs",setData);
   const expiredCount = data.personalDocs.filter(d=>timeLeft(d.expiry)==="Expired").length;
@@ -621,7 +621,7 @@ function Subscriptions({data,setData}){
   const [collapsed,setCollapsed] = useLocalState("subs_collapsed",false);
   const [mOpen,setMOpen] = useState({});
   const [editM,setEditM] = useState({});
-  const [cardFilter,setCardFilter] = useState("All");
+  const [cardFilter,setCardFilter] = useLocalState("subs_card_filter","All");
   const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
   const parseM = str=>{if(!str)return[];return str.split(",").map(m=>{const p=m.trim().split(":");return{name:p[0]?.trim()||"",paid:(p[1]?.trim()||"").toLowerCase()==="paid",date:p[2]?.trim()||""};}).filter(m=>m.name);};
   const serM = arr=>arr.filter(m=>m.name.trim()).map(m=>`${m.name}:${m.paid?"Paid":"Unpaid"}:${m.date}`).join(", ");
@@ -781,9 +781,9 @@ function CarMaintenance({data,setData}){
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
   const [search,setSearch] = useState("");
-  const [fAction,setFAction] = useState("All");
-  const [fVehicle,setFVehicle] = useState("All");
-  const [fYear,setFYear] = useState("All");
+  const [fAction,setFAction] = useLocalState("car_filter_action","All");
+  const [fVehicle,setFVehicle] = useLocalState("car_filter_vehicle","All");
+  const [fYear,setFYear] = useLocalState("car_filter_year","All");
   const [logCollapsed,setLogCollapsed] = useLocalState("car_log_collapsed",false);
   const [vehiclesOpen,setVehiclesOpen] = useLocalState("car_vehicles_open",true);
   const [expV,setExpV] = useState({});
@@ -1276,7 +1276,7 @@ function Investments({data,setData}){
   const [form,setForm] = useState({});
   const [search,setSearch] = useState("");
   const [collapsed,setCollapsed] = useLocalState("investments_collapsed",false);
-  const [cardFilter,setCardFilter] = useState("All");
+  const [cardFilter,setCardFilter] = useLocalState("investments_card_filter","All");
   const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
   const total = data.investments.reduce((s,r)=>s+Number(r.value||0),0);
   const etfTotal = data.investments.filter(r=>r.type==="ETF").reduce((s,r)=>s+Number(r.value||0),0);
