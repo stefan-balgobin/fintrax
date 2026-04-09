@@ -1553,6 +1553,17 @@ export default function App(){
   const pendingSave = React.useRef(null);
   React.useEffect(()=>{ dataRef.current = data; },[data]);
 
+  // ── INACTIVITY AUTO-LOGOUT (15 min) ──────────────────────────────────────────
+  React.useEffect(()=>{
+    if(!user||TEST_MODE) return;
+    const TIMEOUT = 15*60*1000;
+    let timer = setTimeout(handleLogout, TIMEOUT);
+    const reset = ()=>{ clearTimeout(timer); timer=setTimeout(handleLogout, TIMEOUT); };
+    const events = ["mousemove","mousedown","keydown","touchstart","scroll","click"];
+    events.forEach(e=>window.addEventListener(e, reset, {passive:true}));
+    return()=>{ clearTimeout(timer); events.forEach(e=>window.removeEventListener(e, reset)); };
+  },[user]);
+
   // Compute current theme
   const currentT = darkMode ? DARK : LIGHT;
 
