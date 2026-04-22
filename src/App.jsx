@@ -1359,8 +1359,8 @@ import { createClient } from "@supabase/supabase-js";
 
 const TEST_MODE = false; // ← set to true to test locally with empty data, false for real app
 
-const SUPABASE_URL = "https://cpsyxvygcmmjxthvbiqd.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_1ilCgCSAMw6tVGTtLemgsw_jOvcrwx8";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, storageKey: "fintrax_auth" },
   global: { headers: { apikey: SUPABASE_ANON_KEY } }
