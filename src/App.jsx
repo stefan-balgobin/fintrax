@@ -1,4 +1,5 @@
 import React, { useState, useContext, createContext } from "react";
+import * as XLSX from "xlsx";
 
 // ── THEME ─────────────────────────────────────────────────────────────────────
 const DARK = {
@@ -1547,6 +1548,7 @@ export default function App(){
   const [darkMode,setDarkMode]       = useState(true);
   const [enabledPages,setEnabledPages] = useState(DEFAULT_ENABLED);
   const [bottomExpanded,setBottomExpanded] = useState(false);
+  const [exportSel,setExportSel] = useState({expenses:true,certs:true,personal:true,subscriptions:true,car:true,leisure:true,investments:true});
   const dataRef     = React.useRef(data);
   const pendingSave = React.useRef(null);
   React.useEffect(()=>{ dataRef.current = data; },[data]);
@@ -1624,6 +1626,29 @@ export default function App(){
         .catch((e)=>{ console.error("Save error:",e); setSyncing(false); });
     }
   };
+
+  function exportToExcel(){
+    const wb = XLSX.utils.book_new();
+    const tripCostCalc = r=>(r.legs||[]).reduce((s,l)=>s+Number(l.flightCost||0),0)+(r.accommodations||[]).reduce((s,a)=>s+Number(a.cost||0),0);
+    const sections = [
+      {key:"expenses",      label:"Expenses",         rows: data.expenses.map(e=>        ({"Name":e.name,"Category":e.category,"Amount (TTD)":Number(e.amount||0)}))},
+      {key:"certs",         label:"Certifications",   rows: data.certs.map(c=>           ({"Name":c.name,"Issued":c.issued||"","Expiry":c.expiry||"","Cost TTD":Number(c.costTTD||0),"Cost USD":Number(c.costUSD||0)}))},
+      {key:"personal",      label:"Personal Docs",    rows: data.personalDocs.map(d=>    ({"Type":d.type,"Issued":d.issued||"","Expiry":d.expiry||"","Cost (TTD)":Number(d.cost||0)}))},
+      {key:"subscriptions", label:"Subscriptions",    rows: data.subscriptions.map(s=>   ({"Service":s.service,"Type":s.type,"Amount (TTD)":Number(s.amount||0),"Renewal Date":s.renews||"","Members":s.members||""}))},
+      {key:"car",           label:"Car Maintenance",  rows: data.carLog.map(r=>          ({"Vehicle":r.vehicleId||"","Item":r.item,"Action":r.action,"Date":r.date||"","Mileage (km)":Number(r.mileage||0),"Cost (TTD)":Number(r.cost||0),"Supplier":r.supplier||""}))},
+      {key:"leisure",       label:"Leisure & Travel", rows: data.leisure.map(r=>         ({"Trip":r.trip,"Status":r.status||"","Flights":(r.legs||[]).length,"Stays":(r.accommodations||[]).length,"Total Cost (TTD)":tripCostCalc(r)}))},
+      {key:"investments",   label:"Investments",      rows: data.investments.map(r=>     ({"Ticker":r.ticker,"Type":r.type,"Value (USD)":Number(r.value||0)}))},
+    ];
+    let added = 0;
+    sections.forEach(s=>{
+      if(!exportSel[s.key]) return;
+      const ws = XLSX.utils.json_to_sheet(s.rows.length>0?s.rows:[{"No data":"—"}]);
+      XLSX.utils.book_append_sheet(wb,ws,s.label);
+      added++;
+    });
+    if(added===0) return;
+    XLSX.writeFile(wb,`fintrax_export_${CY}.xlsx`);
+  }
 
   // Save settings to Supabase when they change
   function saveSettings(dm, ep){
@@ -1782,6 +1807,39 @@ export default function App(){
                       <BubbleToggle on={!!enabledPages[p.id]} onToggle={()=>togglePage(p.id)} size="sm"/>
                     </div>
                   ))}
+                </div>
+
+                {/* ── Export Data ── */}
+                <div style={{background:currentT.card,borderRadius:12,padding:16,border:`1px solid ${currentT.border}`,marginTop:12}}>
+                  <div style={{fontSize:10,letterSpacing:2,color:currentT.muted,textTransform:"uppercase",marginBottom:4}}>Export Data</div>
+                  <div style={{fontSize:11,color:currentT.muted,marginBottom:14}}>Select sections to export as a single Excel file (.xlsx), one sheet per section.</div>
+                  {[
+                    {key:"expenses",      label:"Expenses",        icon:"◉"},
+                    {key:"certs",         label:"Certifications",  icon:"◎"},
+                    {key:"personal",      label:"Personal Docs",   icon:"◫"},
+                    {key:"subscriptions", label:"Subscriptions",   icon:"◌"},
+                    {key:"car",           label:"Car Maintenance", icon:"◧"},
+                    {key:"leisure",       label:"Leisure & Travel",icon:"◑"},
+                    {key:"investments",   label:"Investments",     icon:"◐"},
+                  ].map(s=>(
+                    <div key={s.key} onClick={()=>setExportSel(p=>({...p,[s.key]:!p[s.key]}))}
+                      style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:`1px solid ${currentT.border}20`,cursor:"pointer"}}>
+                      <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${exportSel[s.key]?currentT.accent:currentT.border}`,background:exportSel[s.key]?currentT.accent:"none",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        {exportSel[s.key]&&<span style={{color:"#fff",fontSize:11,fontWeight:700,lineHeight:1}}>✓</span>}
+                      </div>
+                      <span style={{fontSize:13,color:currentT.text}}>{s.icon} {s.label}</span>
+                    </div>
+                  ))}
+                  <div style={{display:"flex",gap:8,marginTop:14}}>
+                    <button onClick={()=>setExportSel({expenses:true,certs:true,personal:true,subscriptions:true,car:true,leisure:true,investments:true})}
+                      style={{...S.outlineBtn(false,currentT.muted),padding:"6px 12px",fontSize:11}}>All</button>
+                    <button onClick={()=>setExportSel({expenses:false,certs:false,personal:false,subscriptions:false,car:false,leisure:false,investments:false})}
+                      style={{...S.outlineBtn(false,currentT.muted),padding:"6px 12px",fontSize:11}}>None</button>
+                    <button onClick={exportToExcel}
+                      style={{...S.btn(currentT.green),flex:1,padding:"8px 14px",fontSize:12,textAlign:"center"}}>
+                      ⬇ Export to Excel
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
