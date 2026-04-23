@@ -1629,30 +1629,64 @@ export default function App(){
 
   function exportToExcel(){
     const wb = XLSX.utils.book_new();
-    const tripCostCalc = r=>(r.legs||[]).reduce((s,l)=>s+Number(l.flightCost||0),0)+(r.accommodations||[]).reduce((s,a)=>s+Number(a.cost||0),0);
+    const addSheet = (rows,label)=>{ const ws=XLSX.utils.json_to_sheet(rows.length>0?rows:[{"No data":"—"}]); XLSX.utils.book_append_sheet(wb,ws,label); };
+    const parseM = str=>{if(!str)return[];return str.split(",").map(m=>{const p=m.trim().split(":");return{name:p[0]?.trim()||"",paid:(p[1]?.trim()||"").toLowerCase()==="paid",date:p[2]?.trim()||""};}).filter(m=>m.name);};
+
     const sections = [
-      {key:"expenses",      label:"Expenses",         rows: data.expenses.map(e=>        ({"Name":e.name,"Category":e.category,"Amount (TTD)":Number(e.amount||0)}))},
-      {key:"certs",         label:"Certifications",   rows: data.certs.map(c=>           ({"Name":c.name,"Issued":c.issued||"","Expiry":c.expiry||"","Cost TTD":Number(c.costTTD||0),"Cost USD":Number(c.costUSD||0)}))},
-      {key:"personal",      label:"Personal Docs",    rows: data.personalDocs.map(d=>    ({"Type":d.type,"Issued":d.issued||"","Expiry":d.expiry||"","Cost (TTD)":Number(d.cost||0)}))},
-      {key:"subscriptions", label:"Subscriptions",    rows: data.subscriptions.flatMap(s=>{
-        const parseM=str=>{if(!str)return[];return str.split(",").map(m=>{const p=m.trim().split(":");return{name:p[0]?.trim()||"",paid:(p[1]?.trim()||"").toLowerCase()==="paid",date:p[2]?.trim()||""};}).filter(m=>m.name);};
+      {key:"expenses",      label:"Expenses",        rows: data.expenses.map(e=>       ({"Name":e.name,"Category":e.category,"Amount (TTD)":Number(e.amount||0)}))},
+      {key:"certs",         label:"Certifications",  rows: data.certs.map(c=>          ({"Name":c.name,"Issued":c.issued||"","Expiry":c.expiry||"","Cost TTD":Number(c.costTTD||0),"Cost USD":Number(c.costUSD||0)}))},
+      {key:"personal",      label:"Personal Docs",   rows: data.personalDocs.map(d=>   ({"Type":d.type,"Issued":d.issued||"","Expiry":d.expiry||"","Cost (TTD)":Number(d.cost||0)}))},
+      {key:"subscriptions", label:"Subscriptions",   rows: data.subscriptions.flatMap(s=>{
         const members=parseM(s.members);
         const base={"Service":s.service,"Type":s.type,"Amount (TTD)":Number(s.amount||0),"Renewal Date":s.renews||""};
         if(members.length===0) return [{...base,"Member":"","Status":"","Paid Date":"","My Share (TTD)":""}];
         const share=Number(s.amount||0)/members.length;
         return members.map(m=>({...base,"Member":m.name,"Status":m.paid?"Paid":"Unpaid","Paid Date":m.date||"","My Share (TTD)":Number(share.toFixed(2))}));
       })},
-      {key:"car",           label:"Car Maintenance",  rows: data.carLog.map(r=>          ({"Vehicle":r.vehicleId||"","Item":r.item,"Action":r.action,"Date":r.date||"","Mileage (km)":Number(r.mileage||0),"Cost (TTD)":Number(r.cost||0),"Supplier":r.supplier||""}))},
-      {key:"leisure",       label:"Leisure & Travel", rows: data.leisure.map(r=>         ({"Trip":r.trip,"Status":r.status||"","Flights":(r.legs||[]).length,"Stays":(r.accommodations||[]).length,"Total Cost (TTD)":tripCostCalc(r)}))},
-      {key:"investments",   label:"Investments",      rows: data.investments.map(r=>     ({"Ticker":r.ticker,"Type":r.type,"Value (USD)":Number(r.value||0)}))},
+      {key:"car",           label:"Car Maintenance", rows: data.carLog.map(r=>         ({"Vehicle":r.vehicleId||"","Item":r.item,"Action":r.action,"Date":r.date||"","Mileage (km)":Number(r.mileage||0),"Cost (TTD)":Number(r.cost||0),"Supplier":r.supplier||""}))},
+      {key:"investments",   label:"Investments",     rows: data.investments.map(r=>    ({"Ticker":r.ticker,"Type":r.type,"Value (USD)":Number(r.value||0)}))},
     ];
+
     let added = 0;
     sections.forEach(s=>{
       if(!exportSel[s.key]) return;
-      const ws = XLSX.utils.json_to_sheet(s.rows.length>0?s.rows:[{"No data":"—"}]);
-      XLSX.utils.book_append_sheet(wb,ws,s.label);
+      addSheet(s.rows, s.label);
       added++;
     });
+
+    // ── Leisure: 3 sheets (Summary, Flights, Stays) ──────────────────────────
+    if(exportSel.leisure){
+      const getFirst = leg=>{ if(!leg) return ""; if(leg.flightType==="Multi-City") return leg.segments?.[0]?.departDate||""; return leg.departDate||""; };
+      const getLast  = leg=>{ if(!leg) return ""; if(leg.flightType==="Multi-City"){const s=leg.segments||[];return s[s.length-1]?.arriveDate||s[s.length-1]?.departDate||"";}  if(leg.flightType==="Round Trip") return leg.returnArriveDate||leg.returnDate||""; return leg.arriveDate||leg.departDate||""; };
+
+      // Sheet 1 — Trip Summary
+      const summaryRows = data.leisure.map(r=>{
+        const sl=[...(r.legs||[])].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));
+        const flightCost=(r.legs||[]).reduce((s,l)=>s+Number(l.flightCost||0),0);
+        const accCost=(r.accommodations||[]).reduce((s,a)=>s+Number(a.cost||0),0);
+        return {"Trip":r.trip,"Status":r.status||"","Start Date":sl.length>0?getFirst(sl[0]):"","End Date":sl.length>0?getLast(sl[sl.length-1]):"","No. of Flights":(r.legs||[]).length,"No. of Stays":(r.accommodations||[]).length,"Flight Cost (TTD)":flightCost,"Accommodation Cost (TTD)":accCost,"Total Cost (TTD)":flightCost+accCost};
+      });
+
+      // Sheet 2 — Flights
+      const flightRows = data.leisure.flatMap(r=>(r.legs||[]).map(leg=>{
+        if(leg.flightType==="Multi-City"){
+          const segs=leg.segments||[];
+          const route=segs.map(s=>s.from).concat(segs.length>0?[segs[segs.length-1].to]:[]).join(" → ");
+          return {"Trip":r.trip,"Flight Type":"Multi-City","Route":route,"Airline":leg.airline||"","Flight No.":leg.flightNo||"","Depart Date":segs[0]?.departDate||"","Depart Time":segs[0]?.departTime||"","Arrive Date":segs[segs.length-1]?.arriveDate||"","Arrive Time":segs[segs.length-1]?.arriveTime||"","Return Date":"","Return Time":"","Cost (TTD)":Number(leg.flightCost||0)};
+        }
+        const route=leg.flightType==="Round Trip"?`${leg.from||""} ↔ ${leg.to||""}`:`${leg.from||""} → ${leg.to||""}`;
+        return {"Trip":r.trip,"Flight Type":leg.flightType,"Route":route,"Airline":leg.airline||"","Flight No.":leg.flightNo||"","Depart Date":leg.departDate||"","Depart Time":leg.departTime||"","Arrive Date":leg.arriveDate||"","Arrive Time":leg.arriveTime||"","Return Date":leg.returnDate||"","Return Time":leg.returnTime||"","Cost (TTD)":Number(leg.flightCost||0)};
+      }));
+
+      // Sheet 3 — Stays
+      const stayRows = data.leisure.flatMap(r=>(r.accommodations||[]).map(a=>({"Trip":r.trip,"Hotel / Property":a.hotel||"","City":a.city||"","Check-in Date":a.checkIn||"","Check-in Time":a.checkInTime||"","Check-out Date":a.checkOut||"","Cost (TTD)":Number(a.cost||0)})));
+
+      addSheet(summaryRows, "Leisure Summary");
+      addSheet(flightRows,  "Leisure Flights");
+      addSheet(stayRows,    "Leisure Stays");
+      added += 3;
+    }
+
     if(added===0) return;
     XLSX.writeFile(wb,`fintrax_export_${CY}.xlsx`);
   }
