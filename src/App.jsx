@@ -1547,8 +1547,6 @@ export default function App(){
   const [darkMode,setDarkMode]       = useState(true);
   const [enabledPages,setEnabledPages] = useState(DEFAULT_ENABLED);
   const [bottomExpanded,setBottomExpanded] = useState(false);
-  const swipeRef    = React.useRef(null);
-  const touchStartX = React.useRef(null);
   const dataRef     = React.useRef(data);
   const pendingSave = React.useRef(null);
   React.useEffect(()=>{ dataRef.current = data; },[data]);
@@ -1566,18 +1564,6 @@ export default function App(){
 
   // Compute current theme
   const currentT = darkMode ? DARK : LIGHT;
-
-  function onTouchStart(e){ touchStartX.current = e.touches[0].clientX; }
-  function onTouchEnd(e){
-    if(touchStartX.current===null) return;
-    const diff = e.changedTouches[0].clientX - touchStartX.current;
-    touchStartX.current = null;
-    if(Math.abs(diff)<60) return;
-    const vp = ALL_PAGES.filter(p=>enabledPages[p.id]);
-    const idx = vp.findIndex(p=>p.id===active);
-    if(diff<0&&idx<vp.length-1) setActive(vp[idx+1].id);
-    if(diff>0&&idx>0) setActive(vp[idx-1].id);
-  }
 
   // Update document background when theme changes — runs on mount and every toggle
   React.useEffect(()=>{
@@ -1689,8 +1675,7 @@ export default function App(){
 
   return(
     <ThemeCtx.Provider value={currentT}>
-    <div ref={swipeRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
-      style={{minHeight:"100vh",background:currentT.bg,color:currentT.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",fontSize:14,overflowX:"hidden",width:"100%"}}>
+    <div style={{minHeight:"100vh",background:currentT.bg,color:currentT.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",fontSize:14,overflowX:"hidden",width:"100%"}}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
       <style>{`
         *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;max-width:100%;}
