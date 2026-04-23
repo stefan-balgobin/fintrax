@@ -1634,7 +1634,14 @@ export default function App(){
       {key:"expenses",      label:"Expenses",         rows: data.expenses.map(e=>        ({"Name":e.name,"Category":e.category,"Amount (TTD)":Number(e.amount||0)}))},
       {key:"certs",         label:"Certifications",   rows: data.certs.map(c=>           ({"Name":c.name,"Issued":c.issued||"","Expiry":c.expiry||"","Cost TTD":Number(c.costTTD||0),"Cost USD":Number(c.costUSD||0)}))},
       {key:"personal",      label:"Personal Docs",    rows: data.personalDocs.map(d=>    ({"Type":d.type,"Issued":d.issued||"","Expiry":d.expiry||"","Cost (TTD)":Number(d.cost||0)}))},
-      {key:"subscriptions", label:"Subscriptions",    rows: data.subscriptions.map(s=>   ({"Service":s.service,"Type":s.type,"Amount (TTD)":Number(s.amount||0),"Renewal Date":s.renews||"","Members":s.members||""}))},
+      {key:"subscriptions", label:"Subscriptions",    rows: data.subscriptions.flatMap(s=>{
+        const parseM=str=>{if(!str)return[];return str.split(",").map(m=>{const p=m.trim().split(":");return{name:p[0]?.trim()||"",paid:(p[1]?.trim()||"").toLowerCase()==="paid",date:p[2]?.trim()||""};}).filter(m=>m.name);};
+        const members=parseM(s.members);
+        const base={"Service":s.service,"Type":s.type,"Amount (TTD)":Number(s.amount||0),"Renewal Date":s.renews||""};
+        if(members.length===0) return [{...base,"Member":"","Status":"","Paid Date":"","My Share (TTD)":""}];
+        const share=Number(s.amount||0)/members.length;
+        return members.map(m=>({...base,"Member":m.name,"Status":m.paid?"Paid":"Unpaid","Paid Date":m.date||"","My Share (TTD)":Number(share.toFixed(2))}));
+      })},
       {key:"car",           label:"Car Maintenance",  rows: data.carLog.map(r=>          ({"Vehicle":r.vehicleId||"","Item":r.item,"Action":r.action,"Date":r.date||"","Mileage (km)":Number(r.mileage||0),"Cost (TTD)":Number(r.cost||0),"Supplier":r.supplier||""}))},
       {key:"leisure",       label:"Leisure & Travel", rows: data.leisure.map(r=>         ({"Trip":r.trip,"Status":r.status||"","Flights":(r.legs||[]).length,"Stays":(r.accommodations||[]).length,"Total Cost (TTD)":tripCostCalc(r)}))},
       {key:"investments",   label:"Investments",      rows: data.investments.map(r=>     ({"Ticker":r.ticker,"Type":r.type,"Value (USD)":Number(r.value||0)}))},
