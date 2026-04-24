@@ -1654,53 +1654,74 @@ export default function App(){
       added++;
     });
 
-    // ── Leisure: single structured sheet ─────────────────────────────────────
+    // ── Leisure: structured layout using array-of-arrays ─────────────────────
     if(exportSel.leisure){
       const getFirst = leg=>{ if(!leg)return""; if(leg.flightType==="Multi-City")return leg.segments?.[0]?.departDate||""; return leg.departDate||""; };
       const getLast  = leg=>{ if(!leg)return""; if(leg.flightType==="Multi-City"){const s=leg.segments||[];return s[s.length-1]?.arriveDate||s[s.length-1]?.departDate||"";} if(leg.flightType==="Round Trip")return leg.returnArriveDate||leg.returnDate||""; return leg.arriveDate||leg.departDate||""; };
-      const blank = {"Type":"","Name / Route / Property":"","Info":"","From Date":"","From Time":"","To Date":"","To Time":"","Cost (TTD)":""};
-      const leisureRows = [];
+      // Columns: [#/Label] [Detail A] [Detail B] [Detail C] [Detail D] [Depart/From Date] [Depart/From Time] [Arrive/To Date] [Arrive/To Time] [Cost (TTD)]
+      const aoa = []; // array of arrays
 
-      data.leisure.forEach(r=>{
+      data.leisure.forEach((r, tripIdx)=>{
         const sl=[...(r.legs||[])].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));
         const flightCost=(r.legs||[]).reduce((s,l)=>s+Number(l.flightCost||0),0);
         const accCost=(r.accommodations||[]).reduce((s,a)=>s+Number(a.cost||0),0);
-        const nf=(r.legs||[]).length, ns=(r.accommodations||[]).length;
+        const startDate=sl.length>0?getFirst(sl[0]):"", endDate=sl.length>0?getLast(sl[sl.length-1]):"";
 
-        // Trip header row
-        leisureRows.push({"Type":"TRIP","Name / Route / Property":r.trip,"Info":`${r.status||"Planning"}  |  ${nf} flight${nf!==1?"s":""},  ${ns} stay${ns!==1?"s":""}`,
-          "From Date":sl.length>0?getFirst(sl[0]):"","From Time":"","To Date":sl.length>0?getLast(sl[sl.length-1]):"","To Time":"","Cost (TTD)":flightCost+accCost});
+        // ── Trip title ──
+        aoa.push([`TRIP: ${r.trip}`,"","","","","","","","",""]);
+        // ── Trip summary ──
+        aoa.push(["Status:", r.status||"Planning", "", "Period:", startDate, "→", endDate, "", "Total Cost (TTD):", flightCost+accCost]);
+        aoa.push(["Flights:", (r.legs||[]).length, "", "Stays:", (r.accommodations||[]).length, "", "Flight Cost (TTD):", flightCost, "Stay Cost (TTD):", accCost]);
+        aoa.push([""]);
 
-        // Flight rows
-        (r.legs||[]).forEach(leg=>{
-          let route,fromDate,fromTime,toDate,toTime,info;
-          if(leg.flightType==="Multi-City"){
-            const segs=leg.segments||[];
-            route=segs.map(s=>s.from).concat(segs.length>0?[segs[segs.length-1].to]:[]).join(" → ");
-            fromDate=segs[0]?.departDate||""; fromTime=segs[0]?.departTime||"";
-            toDate=segs[segs.length-1]?.arriveDate||segs[segs.length-1]?.departDate||""; toTime=segs[segs.length-1]?.arriveTime||"";
-          } else if(leg.flightType==="Round Trip"){
-            route=`${leg.from||"?"} ↔ ${leg.to||"?"}`;
-            fromDate=leg.departDate||""; fromTime=leg.departTime||"";
-            toDate=leg.returnArriveDate||leg.returnDate||""; toTime=leg.returnArriveTime||leg.returnTime||"";
-          } else {
-            route=`${leg.from||"?"} → ${leg.to||"?"}`;
-            fromDate=leg.departDate||""; fromTime=leg.departTime||"";
-            toDate=leg.arriveDate||""; toTime=leg.arriveTime||"";
-          }
-          info=[leg.flightType, leg.airline, leg.flightNo].filter(Boolean).join("  |  ");
-          leisureRows.push({"Type":"  Flight","Name / Route / Property":route,"Info":info,"From Date":fromDate,"From Time":fromTime,"To Date":toDate,"To Time":toTime,"Cost (TTD)":Number(leg.flightCost||0)});
-        });
+        // ── Flights ──
+        if((r.legs||[]).length>0){
+          aoa.push(["FLIGHTS","","","","","","","","",""]);
+          aoa.push(["#","Type","From","To","Airline","Flight No.","Depart Date","Depart Time","Arrive Date","Arrive Time","Return Date","Return Time","Cost (TTD)"]);
+          r.legs.forEach((leg,li)=>{
+            if(leg.flightType==="Multi-City"){
+              const segs=leg.segments||[];
+              const fullRoute=segs.map(s=>s.from).concat(segs.length>0?[segs[segs.length-1].to]:[]).join(" → ");
+              aoa.push([li+1,"Multi-City",fullRoute,"",leg.airline||"",leg.flightNo||"","","","","","","",Number(leg.flightCost||0)]);
+              segs.forEach((seg,si)=>{
+                aoa.push(["",`  Seg ${si+1}`,seg.from||"",seg.to||"","","",seg.departDate||"",seg.departTime||"",seg.arriveDate||"",seg.arriveTime||"","","",""]);
+              });
+            } else if(leg.flightType==="Round Trip"){
+              aoa.push([li+1,"Round Trip",leg.from||"",leg.to||"",leg.airline||"",leg.flightNo||"","","","","","","",Number(leg.flightCost||0)]);
+              aoa.push(["","  Outbound",leg.from||"",leg.to||"","","",leg.departDate||"",leg.departTime||"",leg.arriveDate||"",leg.arriveTime||"","","",""]);
+              aoa.push(["","  Return",leg.to||"",leg.from||"","","",leg.returnDate||"",leg.returnTime||"",leg.returnArriveDate||"",leg.returnArriveTime||"","","",""]);
+            } else {
+              aoa.push([li+1,"One Way",leg.from||"",leg.to||"",leg.airline||"",leg.flightNo||"",leg.departDate||"",leg.departTime||"",leg.arriveDate||"",leg.arriveTime||"","","",Number(leg.flightCost||0)]);
+            }
+          });
+          aoa.push([""]);
+        }
 
-        // Stay rows
-        (r.accommodations||[]).forEach(a=>{
-          leisureRows.push({"Type":"  Stay","Name / Route / Property":[a.hotel,a.city].filter(Boolean).join(", "),"Info":"","From Date":a.checkIn||"","From Time":a.checkInTime||"","To Date":a.checkOut||"","To Time":"","Cost (TTD)":Number(a.cost||0)});
-        });
+        // ── Accommodation ──
+        if((r.accommodations||[]).length>0){
+          aoa.push(["ACCOMMODATION","","","","","","","","",""]);
+          aoa.push(["#","Hotel / Property","City","","","","Check-in Date","Check-in Time","Check-out Date","","Cost (TTD)"]);
+          r.accommodations.forEach((a,ai)=>{
+            aoa.push([ai+1,a.hotel||"",a.city||"","","","",a.checkIn||"",a.checkInTime||"",a.checkOut||"","",Number(a.cost||0)]);
+          });
+          aoa.push([""]);
+        }
 
-        leisureRows.push(blank); // blank separator between trips
+        // ── Trip total ──
+        aoa.push(["","","","","","","","","TRIP TOTAL (TTD):", flightCost+accCost]);
+
+        // ── Separator between trips ──
+        if(tripIdx<data.leisure.length-1){
+          aoa.push([""]);
+          aoa.push(["────────────────────────────────────────────────────────────────────────────────"]);
+          aoa.push([""]);
+        }
       });
 
-      addSheet(leisureRows, "Leisure & Travel");
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      // Set column widths
+      ws["!cols"] = [{wch:4},{wch:14},{wch:20},{wch:20},{wch:20},{wch:14},{wch:14},{wch:12},{wch:14},{wch:12},{wch:14},{wch:12},{wch:14}];
+      XLSX.utils.book_append_sheet(wb, ws, "Leisure & Travel");
       added++;
     }
 
