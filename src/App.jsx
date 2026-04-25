@@ -30,6 +30,14 @@ const timeLeft = exp => { if(!exp) return "—"; const diff=new Date(exp)-new Da
 const urgencyColor = (tl, t=T) => (!tl||tl==="Expired") ? t.red : !tl.includes("y") ? t.yellow : t.green;
 const expiryYear = s => s ? new Date(s).getFullYear() : null;
 const logYear = s => s && s!=="-" ? new Date(s).getFullYear() : null;
+const effectiveRenews = sub => {
+  if(!sub.autoRenew||!sub.renews||sub.cancelled) return sub.renews||"";
+  let d=new Date(sub.renews);
+  const today=new Date();
+  if(d>today) return sub.renews;
+  while(d<=today){ if(sub.type==="Annual") d.setFullYear(d.getFullYear()+1); else d.setMonth(d.getMonth()+1); }
+  return d.toISOString().slice(0,10);
+};
 
 // ── STYLES — generated fresh from current theme T ─────────────────────────────
 const mkS = (T) => ({
@@ -243,7 +251,7 @@ function Overview({data, enabledPages}){
     ...(ep.certs!==false ? data.certs.map(c=>({name:c.name,expiry:c.expiry,type:"Cert"})) : []),
     ...(ep.personal!==false ? data.personalDocs.map(d=>({name:d.type,expiry:d.expiry,type:"Doc"})) : []),
   ].filter(d=>d.expiry&&urgencyColor(timeLeft(d.expiry),T)!==T.green).sort((a,b)=>new Date(a.expiry)-new Date(b.expiry));
-  const soon30 = ep.subscriptions!==false ? data.subscriptions.filter(s=>{if(!s.renews)return false;const diff=new Date(s.renews)-new Date();return diff>0&&diff<=30*86400000;}).sort((a,b)=>new Date(a.renews)-new Date(b.renews)) : [];
+  const soon30 = ep.subscriptions!==false ? data.subscriptions.filter(s=>{if(s.cancelled)return false;const er=effectiveRenews(s);if(!er)return false;const diff=new Date(er)-new Date();return diff>0&&diff<=30*86400000;}).sort((a,b)=>new Date(effectiveRenews(a))-new Date(effectiveRenews(b))) : [];
 
   // ── spending breakdown rows (only enabled pages) ──
   const breakdown = [
@@ -284,7 +292,7 @@ function Overview({data, enabledPages}){
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(155px,1fr))",gap:10,marginBottom:14}}>
         {showTotalSpend&&<StatCard label={`${CY} Total Spend`}  value={fmt(totalCY)}    sub={`avg ${fmt(monthlyAvg)}/mo`} color={T.red}/>}
         {showInvCard&&<StatCard label="Investments Value"        value={fmt(totalInv)}   sub={`${data.investments.length} holding${data.investments.length!==1?"s":""}`} color={T.green}/>}
-        {showSubs&&<StatCard label="Subs Cost/yr"                value={fmt(subTotal)}   sub={`${data.subscriptions.length} active`} color={T.accent}/>}
+        {showSubs&&<StatCard label="Subs Cost/yr"                value={fmt(subTotal)}   sub={`${data.subscriptions.filter(s=>!s.cancelled).length} active`} color={T.accent}/>}
         {showAlerts&&<StatCard label="Expiry Alerts"             value={alerts.length}   sub={alerts.length>0?`${alerts.filter(a=>timeLeft(a.expiry)==="Expired").length} expired`:"all clear"} color={alerts.length>0?T.yellow:T.green}/>}
       </div>
 
@@ -314,7 +322,7 @@ function Overview({data, enabledPages}){
                   </div>
                   <div style={{textAlign:"right",flexShrink:0}}>
                     <div style={{fontSize:12,fontWeight:700,color:T.accent}}>{fmt(subUserCost(s))}</div>
-                    <div style={{fontSize:10,color:T.muted}}>{fmtDate(s.renews)}</div>
+                    <div style={{fontSize:10,color:T.muted}}>{fmtDate(effectiveRenews(s))}</div>
                   </div>
                 </div>
               ))}
@@ -646,7 +654,7 @@ function Subscriptions({data,setData}){
   });
   const togglePaid = (sid,i)=>setData(d=>({...d,subscriptions:d.subscriptions.map(sub=>{if(sub.id!==sid)return sub;const ms=parseM(sub.members);ms[i]={...ms[i],paid:!ms[i].paid,date:!ms[i].paid?new Date().toISOString().slice(0,10):ms[i].date};return{...sub,members:serM(ms)};})}));
   const updMF = (sid,i,field,val)=>setData(d=>({...d,subscriptions:d.subscriptions.map(sub=>{if(sub.id!==sid)return sub;const ms=parseM(sub.members);ms[i]={...ms[i],[field]:val};return{...sub,members:serM(ms)};})}));
-  function openAdd(){setForm({service:"",type:"Monthly",amount:"",renews:""});setFormMembers([{name:"Me",paid:false,date:""}]);setModal("add");}
+  function openAdd(){setForm({service:"",type:"Monthly",amount:"",renews:"",autoRenew:true,cancelled:false});setFormMembers([{name:"Me",paid:false,date:""}]);setModal("add");}
   function openEdit(sub){setForm({...sub});const ms=parseM(sub.members);if(ms.length===0||ms[0].name!=="Me")ms.unshift({name:"Me",paid:false,date:""});setFormMembers(ms);setModal("edit");}
   function save(){
     const membersStr=serM(formMembers);
@@ -673,20 +681,25 @@ function Subscriptions({data,setData}){
       {!collapsed&&(
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {shown.map(sub=>{
-            const tl=timeLeft(sub.renews);
+            const er=sub.cancelled?"":effectiveRenews(sub);
+            const tl=sub.cancelled?"Cancelled":timeLeft(er);
+            const uc=sub.cancelled?T.muted:urgencyColor(tl,T);
             const members=parseM(sub.members);
             const myCost=userCost(sub);
             const split=members.length>0?Number(sub.amount||0)/members.length:Number(sub.amount||0);
             const isOpen=!!mOpen[sub.id];
             return(
-              <div key={sub.id} style={{...S.card,borderColor:T.accent+"30"}}>
+              <div key={sub.id} style={{...S.card,borderColor:(sub.cancelled?T.muted:T.accent)+"30"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}}>
                   <div style={{fontWeight:700,fontSize:14,flex:1}}>{sub.service}</div>
-                  <span style={{...S.badge(urgencyColor(tl,T)),flexShrink:0}}>{tl}</span>
+                  <span style={{...S.badge(uc),flexShrink:0}}>{tl}</span>
                 </div>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                  <span style={S.badge(T.purple)}>{sub.type}</span>
-                  {sub.renews&&<span style={{fontSize:12}}><span style={{color:T.muted}}>Renews </span><span style={{color:T.text,fontWeight:600}}>{fmtDate(sub.renews)}</span></span>}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:6}}>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <span style={S.badge(T.purple)}>{sub.type}</span>
+                    <span style={S.badge(sub.autoRenew!==false?T.green:T.yellow)}>{sub.autoRenew!==false?"Auto":"Manual"}</span>
+                  </div>
+                  {er&&<span style={{fontSize:12}}><span style={{color:T.muted}}>Renews </span><span style={{color:T.text,fontWeight:600}}>{fmtDate(er)}</span></span>}
                 </div>
                 <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:2}}>
                   <div style={{fontSize:20,fontWeight:700,color:T.accent}}>{fmt(myCost)}</div>
@@ -734,7 +747,10 @@ function Subscriptions({data,setData}){
                     )}
                   </div>
                 )}
-                <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
+                  <button onClick={()=>setData(d=>({...d,subscriptions:d.subscriptions.map(s=>s.id===sub.id?{...s,cancelled:!s.cancelled}:s)}))} style={{...S.btn(sub.cancelled?T.green:T.muted),padding:"6px 14px",fontSize:12}}>
+                    {sub.cancelled?"Reactivate":"Cancel"}
+                  </button>
                   <ItemActions label={sub.service} onEdit={()=>openEdit(sub)} onDelete={()=>setData(d=>({...d,subscriptions:d.subscriptions.filter(x=>x.id!==sub.id)}))}/>
                 </div>
               </div>
@@ -750,6 +766,12 @@ function Subscriptions({data,setData}){
             <Field label="Amount"><input style={S.input} type="number" value={form.amount||""} onChange={e=>upd("amount",e.target.value)} placeholder="0.00"/></Field>
           </G2>
           <Field label="Renewal Date"><input style={S.input} type="date" value={form.renews||""} onChange={e=>upd("renews",e.target.value)}/></Field>
+          <Field label="Renewal Plan">
+            <div style={{display:"flex",gap:8}}>
+              <button type="button" style={{...S.outlineBtn(form.autoRenew!==false),flex:1}} onClick={()=>upd("autoRenew",true)}>Auto-Renew</button>
+              <button type="button" style={{...S.outlineBtn(form.autoRenew===false),flex:1}} onClick={()=>upd("autoRenew",false)}>Manual Renew</button>
+            </div>
+          </Field>
           <div style={{marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
               <label style={S.label}>Members</label>
