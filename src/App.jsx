@@ -1233,6 +1233,115 @@ function TripDetail({trip,onBack,onSave}){
   );
 }
 
+// ── ITINERARY PDF EXPORT ──────────────────────────────────────────────────────
+function exportItinerary(trip){
+  const getFirst=leg=>{if(!leg)return null;if(leg.flightType==="Multi-City")return leg.segments?.[0]?.departDate||null;return leg.departDate||null;};
+  const getLast=leg=>{if(!leg)return null;if(leg.flightType==="Multi-City"){const s=leg.segments||[];return s[s.length-1]?.arriveDate||s[s.length-1]?.departDate||null;}if(leg.flightType==="Round Trip")return leg.returnArriveDate||leg.returnDate||null;return leg.arriveDate||leg.departDate||null;};
+  const sorted=[...(trip.legs||[])].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));
+  const start=sorted.length>0?getFirst(sorted[0]):null;
+  const end=sorted.length>0?getLast(sorted[sorted.length-1]):null;
+  const flightTotal=(trip.legs||[]).reduce((s,l)=>s+Number(l.flightCost||0),0);
+  const stayTotal=(trip.accommodations||[]).reduce((s,a)=>s+Number(a.cost||0),0);
+  const total=flightTotal+stayTotal;
+  const f$=n=>n==null||n===""?"—":`$${Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})} TTD`;
+  const fmtT=t=>{if(!t)return"";const[h,m]=t.split(":");const hr=+h;return`${hr%12||12}:${m} ${hr<12?"AM":"PM"}`;};
+  const cell=(label,value)=>`<tr><td class="lbl">${label}</td><td class="val">${value}</td></tr>`;
+
+  let flightsHtml="";
+  (trip.legs||[]).forEach((leg,i)=>{
+    const meta=(leg.airline||"")+((leg.airline&&leg.flightNo)?" · ":"")+(leg.flightNo?"#"+leg.flightNo:"");
+    flightsHtml+=`<div class="item">
+      <div class="item-hdr"><span class="item-num">FLIGHT ${i+1}</span><span class="pill">${leg.flightType}</span>${meta?`<span class="meta">${meta}</span>`:""}
+      </div><div class="hr"></div>`;
+    if(leg.flightType==="One Way"){
+      flightsHtml+=`<table class="dt">${cell("Depart",`<b>${leg.from||"—"}</b> &nbsp; ${leg.departDate?fmtDate(leg.departDate):"—"} &nbsp; ${fmtT(leg.departTime)}`)}${cell("Arrive",`<b>${leg.to||"—"}</b> &nbsp; ${leg.arriveDate?fmtDate(leg.arriveDate):"—"} &nbsp; ${fmtT(leg.arriveTime)}`)}${cell("Flight Cost",`<b>${f$(leg.flightCost)}</b>`)}</table>`;
+    }else if(leg.flightType==="Round Trip"){
+      flightsHtml+=`<div class="sub">OUTBOUND</div><table class="dt">${cell("Depart",`<b>${leg.from||"—"}</b> &nbsp; ${leg.departDate?fmtDate(leg.departDate):"—"} &nbsp; ${fmtT(leg.departTime)}`)}${cell("Arrive",`<b>${leg.to||"—"}</b> &nbsp; ${leg.arriveDate?fmtDate(leg.arriveDate):"—"} &nbsp; ${fmtT(leg.arriveTime)}`)}</table><div class="sub">RETURN</div><table class="dt">${cell("Depart",`<b>${leg.to||"—"}</b> &nbsp; ${leg.returnDate?fmtDate(leg.returnDate):"—"} &nbsp; ${fmtT(leg.returnTime)}`)}${cell("Arrive",`<b>${leg.from||"—"}</b> &nbsp; ${leg.returnArriveDate?fmtDate(leg.returnArriveDate):"—"} &nbsp; ${fmtT(leg.returnArriveTime)}`)}${cell("Flight Cost",`<b>${f$(leg.flightCost)}</b>`)}</table>`;
+    }else if(leg.flightType==="Multi-City"){
+      (leg.segments||[]).forEach((seg,si)=>{flightsHtml+=`<div class="sub">SEGMENT ${si+1}</div><table class="dt">${cell("Depart",`<b>${seg.from||"—"}</b> &nbsp; ${seg.departDate?fmtDate(seg.departDate):"—"} &nbsp; ${fmtT(seg.departTime)}`)}${cell("Arrive",`<b>${seg.to||"—"}</b> &nbsp; ${seg.arriveDate?fmtDate(seg.arriveDate):"—"} &nbsp; ${fmtT(seg.arriveTime)}`)}</table>`;});
+      flightsHtml+=`<table class="dt">${cell("Flight Cost",`<b>${f$(leg.flightCost)}</b>`)}</table>`;
+    }
+    flightsHtml+=`</div>`;
+  });
+
+  let staysHtml="";
+  (trip.accommodations||[]).forEach((acc,i)=>{
+    staysHtml+=`<div class="item">
+      <div class="item-hdr"><span class="item-num">STAY ${i+1}</span>${acc.hotel?`<span class="meta">${acc.hotel}${acc.city?" · "+acc.city:""}</span>`:""}
+      </div><div class="hr"></div>
+      <table class="dt">${cell("Property",`<b>${acc.hotel||"—"}</b>`)}${acc.city?cell("City",acc.city):""}${cell("Check-in",`${acc.checkIn?fmtDate(acc.checkIn):"—"}${acc.checkInTime?" &nbsp; "+fmtT(acc.checkInTime):""}`)}${cell("Check-out",acc.checkOut?fmtDate(acc.checkOut):"—")}${cell("Cost",`<b>${f$(acc.cost)}</b>`)}</table>
+    </div>`;
+  });
+
+  const costRows=[
+    ...(trip.legs||[]).map((l,i)=>`<tr><td>Flight ${i+1}${l.airline?" · "+l.airline:""}${l.flightNo?" #"+l.flightNo:""}</td><td>${f$(l.flightCost)}</td></tr>`),
+    ...(trip.accommodations||[]).map((a,i)=>`<tr><td>Stay ${i+1}${a.hotel?" · "+a.hotel:""}</td><td>${f$(a.cost)}</td></tr>`),
+    `<tr class="tot"><td>TOTAL TRIP COST</td><td>${f$(total)}</td></tr>`,
+  ].join("");
+
+  const dateStr=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Itinerary — ${trip.trip}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',Arial,sans-serif;color:#1e293b;background:#fff;font-size:13px;line-height:1.6;}
+.page{max-width:780px;margin:0 auto;padding:52px 48px;}
+.hdr{border-bottom:3px solid #1d4ed8;padding-bottom:22px;margin-bottom:28px;}
+.brand{font-size:10px;letter-spacing:3px;color:#1d4ed8;font-weight:700;text-transform:uppercase;margin-bottom:10px;}
+.trip-name{font-size:30px;font-weight:700;color:#0f172a;margin-bottom:6px;line-height:1.2;}
+.trip-dates{font-size:14px;color:#475569;margin-bottom:6px;}
+.status{display:inline-block;padding:3px 14px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border:1.5px solid #1d4ed8;color:#1d4ed8;}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px 24px;margin-bottom:32px;}
+.s-lbl{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;font-weight:600;margin-bottom:4px;}
+.s-val{font-size:18px;font-weight:700;color:#0f172a;}
+.s-val.blue{color:#1d4ed8;}
+.sec-title{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#1d4ed8;font-weight:700;margin-bottom:14px;padding-bottom:8px;border-bottom:1.5px solid #e2e8f0;}
+.sec{margin-bottom:32px;}
+.item{margin-bottom:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px 20px;}
+.item-hdr{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+.item-num{font-size:11px;font-weight:700;color:#1d4ed8;letter-spacing:1px;white-space:nowrap;}
+.pill{font-size:10px;font-weight:700;background:#1d4ed815;color:#1d4ed8;padding:2px 10px;border-radius:20px;white-space:nowrap;}
+.meta{font-size:12px;color:#64748b;}
+.hr{height:1px;background:#e2e8f0;margin-bottom:12px;}
+.sub{font-size:10px;letter-spacing:2px;font-weight:700;color:#475569;text-transform:uppercase;margin:10px 0 6px;}
+.dt{width:100%;border-collapse:collapse;}
+.dt td{padding:4px 6px 4px 0;vertical-align:top;}
+td.lbl{width:100px;font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;padding-top:5px;white-space:nowrap;}
+td.val{font-size:13px;color:#1e293b;}
+.ct{width:100%;border-collapse:collapse;}
+.ct tr td{padding:9px 0;border-bottom:1px solid #e2e8f0;font-size:13px;}
+.ct tr:last-child td{border-bottom:none;}
+.ct td:last-child{text-align:right;font-weight:600;}
+tr.tot td{font-weight:700;font-size:15px;color:#1d4ed8;padding-top:14px;}
+.foot{margin-top:48px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;letter-spacing:1px;display:flex;justify-content:space-between;}
+@media print{.page{padding:28px 32px;}@page{margin:1.2cm;}}
+</style></head><body>
+<div class="page">
+  <div class="hdr">
+    <div class="brand">FINTRAX &nbsp;·&nbsp; TRAVEL ITINERARY</div>
+    <div class="trip-name">${trip.trip}</div>
+    <div class="trip-dates">${start&&end?fmtDate(start)+" &nbsp;→&nbsp; "+fmtDate(end):start?fmtDate(start):"Dates TBD"}</div>
+    <span class="status">${trip.status||"Planning"}</span>
+  </div>
+  <div class="summary">
+    <div><div class="s-lbl">Travel Period</div><div class="s-val" style="font-size:13px">${start&&end?fmtDate(start)+" – "+fmtDate(end):"TBD"}</div></div>
+    <div><div class="s-lbl">Flights</div><div class="s-val">${(trip.legs||[]).length}</div></div>
+    <div><div class="s-lbl">Stays</div><div class="s-val">${(trip.accommodations||[]).length}</div></div>
+    <div><div class="s-lbl">Total Cost</div><div class="s-val blue" style="font-size:15px">${f$(total)}</div></div>
+  </div>
+  ${flightsHtml?`<div class="sec"><div class="sec-title">&#9992;&nbsp; Flights</div>${flightsHtml}</div>`:""}
+  ${staysHtml?`<div class="sec"><div class="sec-title">&#127968;&nbsp; Accommodation</div>${staysHtml}</div>`:""}
+  <div class="sec"><div class="sec-title">&#9654;&nbsp; Cost Summary</div>
+    <div class="item"><table class="ct">${costRows}</table></div>
+  </div>
+  <div class="foot"><span>FINTRAX &nbsp;·&nbsp; PERSONAL FINANCE MANAGER</span><span>Generated ${dateStr}</span></div>
+</div>
+<script>window.onload=function(){window.print();}</script>
+</body></html>`;
+  const w=window.open("","_blank","noopener,width=900,height=800");
+  if(w){w.document.write(html);w.document.close();}
+}
+
 // ── LEISURE MAIN ──────────────────────────────────────────────────────────────
 function Leisure({data,setData}){
   const T = useT(); const S = useS();
@@ -1274,7 +1383,10 @@ function Leisure({data,setData}){
             return(
               <div key={r.id} onClick={()=>setActiveTrip(r.id)} style={{...S.card,cursor:"pointer",position:"relative",overflow:"hidden",borderColor:T.green+"40"}} onMouseEnter={e=>e.currentTarget.style.boxShadow=`0 0 16px ${T.green}20`} onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
                 <div style={{position:"absolute",top:-8,right:-8,fontSize:60,opacity:0.05}}>✈</div>
-                <div style={{fontWeight:700,fontSize:16,marginBottom:6,color:T.text}}>{r.trip}</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                  <div style={{fontWeight:700,fontSize:16,color:T.text,flex:1,paddingRight:8}}>{r.trip}</div>
+                  <button onClick={e=>{e.stopPropagation();exportItinerary(r);}} style={{...S.btn(T.accent),padding:"3px 10px",fontSize:10,flexShrink:0,whiteSpace:"nowrap"}}>↓ PDF</button>
+                </div>
                 {(start||end)&&<div style={{fontSize:12,color:T.muted,marginBottom:8}}>{fmtDate(start)}{end?` → ${fmtDate(end)}`:""}</div>}
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:8}}>
                   <div>
