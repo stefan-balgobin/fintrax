@@ -1,6 +1,6 @@
 import React, { useState, useContext, createContext } from "react";
 import * as XLSX from "xlsx";
-import html2pdf from "html2pdf.js";
+import { jsPDF } from "jspdf";
 
 // ── THEME ─────────────────────────────────────────────────────────────────────
 const DARK = {
@@ -1241,107 +1241,156 @@ function exportItinerary(trip){
   const sorted=[...(trip.legs||[])].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));
   const start=sorted.length>0?getFirst(sorted[0]):null;
   const end=sorted.length>0?getLast(sorted[sorted.length-1]):null;
-  const flightTotal=(trip.legs||[]).reduce((s,l)=>s+Number(l.flightCost||0),0);
-  const stayTotal=(trip.accommodations||[]).reduce((s,a)=>s+Number(a.cost||0),0);
-  const total=flightTotal+stayTotal;
+  const total=(trip.legs||[]).reduce((s,l)=>s+Number(l.flightCost||0),0)+(trip.accommodations||[]).reduce((s,a)=>s+Number(a.cost||0),0);
   const f$=n=>n==null||n===""?"—":`$${Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})} TTD`;
   const fmtT=t=>{if(!t)return"";const[h,m]=t.split(":");const hr=+h;return`${hr%12||12}:${m} ${hr<12?"AM":"PM"}`;};
-  const cell=(label,value)=>`<tr><td class="lbl">${label}</td><td class="val">${value}</td></tr>`;
 
-  let flightsHtml="";
-  (trip.legs||[]).forEach((leg,i)=>{
-    const meta=(leg.airline||"")+((leg.airline&&leg.flightNo)?" · ":"")+(leg.flightNo?"#"+leg.flightNo:"");
-    flightsHtml+=`<div class="item">
-      <div class="item-hdr"><span class="item-num">FLIGHT ${i+1}</span><span class="pill">${leg.flightType}</span>${meta?`<span class="meta">${meta}</span>`:""}
-      </div><div class="hr"></div>`;
-    if(leg.flightType==="One Way"){
-      flightsHtml+=`<table class="dt">${cell("Depart",`<b>${leg.from||"—"}</b> &nbsp; ${leg.departDate?fmtDate(leg.departDate):"—"} &nbsp; ${fmtT(leg.departTime)}`)}${cell("Arrive",`<b>${leg.to||"—"}</b> &nbsp; ${leg.arriveDate?fmtDate(leg.arriveDate):"—"} &nbsp; ${fmtT(leg.arriveTime)}`)}${cell("Flight Cost",`<b>${f$(leg.flightCost)}</b>`)}</table>`;
-    }else if(leg.flightType==="Round Trip"){
-      flightsHtml+=`<div class="sub">OUTBOUND</div><table class="dt">${cell("Depart",`<b>${leg.from||"—"}</b> &nbsp; ${leg.departDate?fmtDate(leg.departDate):"—"} &nbsp; ${fmtT(leg.departTime)}`)}${cell("Arrive",`<b>${leg.to||"—"}</b> &nbsp; ${leg.arriveDate?fmtDate(leg.arriveDate):"—"} &nbsp; ${fmtT(leg.arriveTime)}`)}</table><div class="sub">RETURN</div><table class="dt">${cell("Depart",`<b>${leg.to||"—"}</b> &nbsp; ${leg.returnDate?fmtDate(leg.returnDate):"—"} &nbsp; ${fmtT(leg.returnTime)}`)}${cell("Arrive",`<b>${leg.from||"—"}</b> &nbsp; ${leg.returnArriveDate?fmtDate(leg.returnArriveDate):"—"} &nbsp; ${fmtT(leg.returnArriveTime)}`)}${cell("Flight Cost",`<b>${f$(leg.flightCost)}</b>`)}</table>`;
-    }else if(leg.flightType==="Multi-City"){
-      (leg.segments||[]).forEach((seg,si)=>{flightsHtml+=`<div class="sub">SEGMENT ${si+1}</div><table class="dt">${cell("Depart",`<b>${seg.from||"—"}</b> &nbsp; ${seg.departDate?fmtDate(seg.departDate):"—"} &nbsp; ${fmtT(seg.departTime)}`)}${cell("Arrive",`<b>${seg.to||"—"}</b> &nbsp; ${seg.arriveDate?fmtDate(seg.arriveDate):"—"} &nbsp; ${fmtT(seg.arriveTime)}`)}</table>`;});
-      flightsHtml+=`<table class="dt">${cell("Flight Cost",`<b>${f$(leg.flightCost)}</b>`)}</table>`;
-    }
-    flightsHtml+=`</div>`;
+  // ── jsPDF layout ──
+  const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+  const ML=18,MT=20,MB=24,CW=174; // left margin, top, bottom, content width
+  const PH=297;
+  let y=MT;
+
+  const BL=[29,78,216],DK=[15,23,42],SL=[71,85,105],MU=[100,116,139],LI=[248,250,252],BO=[226,232,240];
+  const tc=c=>doc.setTextColor(...c);
+  const dc=c=>doc.setDrawColor(...c);
+  const fc=c=>doc.setFillColor(...c);
+  const lw=w=>doc.setLineWidth(w);
+  const chk=n=>{if(y+n>PH-MB){doc.addPage();y=MT;}};
+  const bf=(sz,c)=>{doc.setFont("helvetica","bold");doc.setFontSize(sz);tc(c||DK);};
+  const nf=(sz,c)=>{doc.setFont("helvetica","normal");doc.setFontSize(sz);tc(c||DK);};
+
+  // HEADER
+  bf(8,BL); doc.text("FINTRAX  \xB7  TRAVEL ITINERARY",ML,y); y+=6;
+  bf(22,DK); doc.text(trip.trip,ML,y); y+=9;
+  nf(12,SL);
+  doc.text(start&&end?fmtDate(start)+" → "+fmtDate(end):start?fmtDate(start):"Dates TBD",ML,y); y+=7;
+  // Status pill
+  const st=(trip.status||"Planning").toUpperCase();
+  bf(8,BL); const stW=doc.getTextWidth(st)+8;
+  fc([255,255,255]);dc(BL);lw(0.4);doc.roundedRect(ML,y-3.5,stW,7,1.5,1.5,"FD");
+  doc.text(st,ML+4,y+0.5); y+=10;
+  dc(BL);lw(0.6);doc.line(ML,y,ML+CW,y); y+=8;
+
+  // SUMMARY BOX
+  chk(32);
+  fc(LI);dc(BO);lw(0.3);doc.roundedRect(ML,y,CW,28,2,2,"FD");
+  const cw4=CW/4;
+  [{lbl:"TRAVEL PERIOD",val:start&&end?fmtDate(start)+" – "+fmtDate(end):"TBD",sz:8.5,c:DK,split:!!(start&&end)},
+   {lbl:"FLIGHTS",val:String((trip.legs||[]).length),sz:14,c:DK},
+   {lbl:"STAYS",val:String((trip.accommodations||[]).length),sz:14,c:DK},
+   {lbl:"TOTAL COST",val:f$(total),sz:10,c:BL}].forEach((si,i)=>{
+    const cx=ML+i*cw4+4;
+    bf(7,MU); doc.text(si.lbl,cx,y+8);
+    bf(si.sz,si.c);
+    if(si.split&&si.val.includes("–")){
+      const pts=si.val.split(" – ");
+      doc.setFontSize(8.5); doc.text(pts[0],cx,y+16); doc.text("– "+pts[1],cx,y+21);
+    } else { doc.text(si.val,cx,y+18); }
   });
+  y+=36;
 
-  let staysHtml="";
-  (trip.accommodations||[]).forEach((acc,i)=>{
-    staysHtml+=`<div class="item">
-      <div class="item-hdr"><span class="item-num">STAY ${i+1}</span>${acc.hotel?`<span class="meta">${acc.hotel}${acc.city?" · "+acc.city:""}</span>`:""}
-      </div><div class="hr"></div>
-      <table class="dt">${cell("Property",`<b>${acc.hotel||"—"}</b>`)}${acc.city?cell("City",acc.city):""}${cell("Check-in",`${acc.checkIn?fmtDate(acc.checkIn):"—"}${acc.checkInTime?" &nbsp; "+fmtT(acc.checkInTime):""}`)}${cell("Check-out",acc.checkOut?fmtDate(acc.checkOut):"—")}${cell("Cost",`<b>${f$(acc.cost)}</b>`)}</table>
-    </div>`;
+  // Section header
+  const sec=title=>{chk(30);bf(9,BL);doc.text(title,ML,y);y+=3;dc(BO);lw(0.3);doc.line(ML,y,ML+CW,y);y+=7;};
+
+  // Card helpers
+  const dRow=(lbl,val,fy)=>{bf(7.5,MU);doc.text(lbl,ML+4,fy);nf(9.5,DK);doc.text(val,ML+32,fy);};
+  const dBold=(lbl,val,fy)=>{bf(7.5,MU);doc.text(lbl,ML+4,fy);bf(9.5,DK);doc.text(val,ML+32,fy);};
+  const dSub=(lbl,fy)=>{bf(7.5,MU);doc.text(lbl,ML+4,fy);};
+  const flightH=leg=>leg.flightType==="Round Trip"?55:leg.flightType==="Multi-City"?21+17*(leg.segments||[]).length:33;
+  const accH=acc=>acc.city?45:39;
+
+  const cardBase=(h)=>{
+    chk(h+4);fc(LI);dc(BO);lw(0.3);doc.roundedRect(ML,y,CW,h,2,2,"FD");
+    dc(BO);lw(0.2);doc.line(ML+3,y+10.5,ML+CW-3,y+10.5);
+  };
+
+  // FLIGHTS
+  if((trip.legs||[]).length>0){
+    sec("FLIGHTS");
+    (trip.legs||[]).forEach((leg,i)=>{
+      const h=flightH(leg); cardBase(h);
+      bf(9,BL); doc.text(`FLIGHT ${i+1}`,ML+4,y+7);
+      const fnW=doc.getTextWidth(`FLIGHT ${i+1}`);
+      const px=ML+4+fnW+3, pw=doc.getTextWidth(leg.flightType)+6;
+      fc([219,234,254]);dc(BL);lw(0.25);doc.roundedRect(px,y+2,pw,5.5,1.5,1.5,"FD");
+      bf(8,BL); doc.text(leg.flightType,px+3,y+6.5);
+      const meta=(leg.airline||"")+((leg.airline&&leg.flightNo)?" \xB7 ":"")+(leg.flightNo?"#"+leg.flightNo:"");
+      if(meta){nf(9,MU);doc.text(meta,px+pw+3,y+7);}
+      let fy=y+17;
+      if(leg.flightType==="One Way"){
+        dRow("DEPART",`${leg.from||"—"}   ${leg.departDate?fmtDate(leg.departDate):"—"}   ${fmtT(leg.departTime)}`,fy);fy+=6;
+        dRow("ARRIVE",`${leg.to||"—"}   ${leg.arriveDate?fmtDate(leg.arriveDate):"—"}   ${fmtT(leg.arriveTime)}`,fy);fy+=6;
+        dBold("FLIGHT COST",f$(leg.flightCost),fy);
+      }else if(leg.flightType==="Round Trip"){
+        dSub("OUTBOUND",fy);fy+=5;
+        dRow("DEPART",`${leg.from||"—"}   ${leg.departDate?fmtDate(leg.departDate):"—"}   ${fmtT(leg.departTime)}`,fy);fy+=6;
+        dRow("ARRIVE",`${leg.to||"—"}   ${leg.arriveDate?fmtDate(leg.arriveDate):"—"}   ${fmtT(leg.arriveTime)}`,fy);fy+=6;
+        dSub("RETURN",fy);fy+=5;
+        dRow("DEPART",`${leg.to||"—"}   ${leg.returnDate?fmtDate(leg.returnDate):"—"}   ${fmtT(leg.returnTime)}`,fy);fy+=6;
+        dRow("ARRIVE",`${leg.from||"—"}   ${leg.returnArriveDate?fmtDate(leg.returnArriveDate):"—"}   ${fmtT(leg.returnArriveTime)}`,fy);fy+=6;
+        dBold("FLIGHT COST",f$(leg.flightCost),fy);
+      }else if(leg.flightType==="Multi-City"){
+        (leg.segments||[]).forEach((seg,si)=>{
+          dSub(`SEGMENT ${si+1}`,fy);fy+=5;
+          dRow("DEPART",`${seg.from||"—"}   ${seg.departDate?fmtDate(seg.departDate):"—"}   ${fmtT(seg.departTime)}`,fy);fy+=6;
+          dRow("ARRIVE",`${seg.to||"—"}   ${seg.arriveDate?fmtDate(seg.arriveDate):"—"}   ${fmtT(seg.arriveTime)}`,fy);fy+=6;
+        });
+        dBold("FLIGHT COST",f$(leg.flightCost),fy);
+      }
+      y+=h+4;
+    });
+    y+=2;
+  }
+
+  // ACCOMMODATION
+  if((trip.accommodations||[]).length>0){
+    sec("ACCOMMODATION");
+    (trip.accommodations||[]).forEach((acc,i)=>{
+      const h=accH(acc); cardBase(h);
+      bf(9,BL); doc.text(`STAY ${i+1}`,ML+4,y+7);
+      if(acc.hotel){const sw=doc.getTextWidth(`STAY ${i+1}`);nf(9,MU);doc.text(acc.hotel+(acc.city?" \xB7 "+acc.city:""),ML+4+sw+3,y+7);}
+      let fy=y+17;
+      dBold("PROPERTY",acc.hotel||"—",fy);fy+=6;
+      if(acc.city){dRow("CITY",acc.city,fy);fy+=6;}
+      dRow("CHECK-IN",(acc.checkIn?fmtDate(acc.checkIn):"—")+(acc.checkInTime?" "+fmtT(acc.checkInTime):""),fy);fy+=6;
+      dRow("CHECK-OUT",acc.checkOut?fmtDate(acc.checkOut):"—",fy);fy+=6;
+      dBold("COST",f$(acc.cost),fy);
+      y+=h+4;
+    });
+    y+=2;
+  }
+
+  // COST SUMMARY
+  const costItems=[
+    ...(trip.legs||[]).map((l,i)=>({lbl:`Flight ${i+1}${l.airline?" \xB7 "+l.airline:""}${l.flightNo?" #"+l.flightNo:""}`,val:f$(l.flightCost)})),
+    ...(trip.accommodations||[]).map((a,i)=>({lbl:`Stay ${i+1}${a.hotel?" \xB7 "+a.hotel:""}`,val:f$(a.cost)})),
+  ];
+  const cstH=10+costItems.length*9+18;
+  sec("COST SUMMARY"); chk(cstH+4);
+  fc(LI);dc(BO);lw(0.3);doc.roundedRect(ML,y,CW,cstH,2,2,"FD");
+  let cy=y+10;
+  costItems.forEach((item,k)=>{
+    nf(10,DK);doc.text(item.lbl,ML+4,cy);
+    bf(10,DK);doc.text(item.val,ML+CW-4,cy,{align:"right"});
+    if(k<costItems.length-1){dc(BO);lw(0.2);doc.line(ML+4,cy+3,ML+CW-4,cy+3);}
+    cy+=9;
   });
+  cy+=4;
+  dc(BO);lw(0.3);doc.line(ML+4,cy-2,ML+CW-4,cy-2);
+  bf(12,BL);doc.text("TOTAL TRIP COST",ML+4,cy+7);
+  doc.text(f$(total),ML+CW-4,cy+7,{align:"right"});
+  y+=cstH+8;
 
-  const costRows=[
-    ...(trip.legs||[]).map((l,i)=>`<tr><td>Flight ${i+1}${l.airline?" · "+l.airline:""}${l.flightNo?" #"+l.flightNo:""}</td><td>${f$(l.flightCost)}</td></tr>`),
-    ...(trip.accommodations||[]).map((a,i)=>`<tr><td>Stay ${i+1}${a.hotel?" · "+a.hotel:""}</td><td>${f$(a.cost)}</td></tr>`),
-    `<tr class="tot"><td>TOTAL TRIP COST</td><td>${f$(total)}</td></tr>`,
-  ].join("");
+  // FOOTER
+  if(y>PH-MB-20){doc.addPage();}
+  const footY=PH-MB+6;
+  dc(BO);lw(0.2);doc.line(ML,footY-4,ML+CW,footY-4);
+  nf(8,MU);
+  doc.text("FINTRAX  \xB7  PERSONAL FINANCE MANAGER",ML,footY);
+  doc.text("Generated "+new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"}),ML+CW,footY,{align:"right"});
 
-  const dateStr=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
-  const css=`
-*{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:Arial,sans-serif;color:#1e293b;background:#fff;font-size:13px;line-height:1.6;}
-.page{width:750px;padding:48px 44px;}
-.hdr{border-bottom:3px solid #1d4ed8;padding-bottom:20px;margin-bottom:26px;}
-.brand{font-size:10px;letter-spacing:3px;color:#1d4ed8;font-weight:700;text-transform:uppercase;margin-bottom:10px;}
-.trip-name{font-size:28px;font-weight:700;color:#0f172a;margin-bottom:6px;line-height:1.2;}
-.trip-dates{font-size:14px;color:#475569;margin-bottom:8px;}
-.status{display:inline-block;padding:3px 14px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border:1.5px solid #1d4ed8;color:#1d4ed8;}
-.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:18px 22px;margin-bottom:30px;}
-.s-lbl{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;font-weight:700;margin-bottom:4px;}
-.s-val{font-size:16px;font-weight:700;color:#0f172a;}
-.blue{color:#1d4ed8;}
-.sec-title{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#1d4ed8;font-weight:700;margin-bottom:12px;padding-bottom:7px;border-bottom:1.5px solid #e2e8f0;}
-.sec{margin-bottom:28px;}
-.item{margin-bottom:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:14px 18px;}
-.item-hdr{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
-.item-num{font-size:10px;font-weight:700;color:#1d4ed8;letter-spacing:1px;}
-.pill{font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8;padding:2px 9px;border-radius:20px;}
-.meta{font-size:11px;color:#64748b;}
-.hr{height:1px;background:#e2e8f0;margin-bottom:10px;}
-.sub{font-size:9px;letter-spacing:2px;font-weight:700;color:#475569;text-transform:uppercase;margin:8px 0 5px;}
-.dt{width:100%;border-collapse:collapse;}
-.dt td{padding:3px 6px 3px 0;vertical-align:top;}
-td.lbl{width:95px;font-size:9px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding-top:4px;white-space:nowrap;}
-td.val{font-size:12px;color:#1e293b;}
-.ct{width:100%;border-collapse:collapse;}
-.ct tr td{padding:8px 0;border-bottom:1px solid #e2e8f0;font-size:12px;}
-.ct tr:last-child td{border-bottom:none;}
-.ct td:last-child{text-align:right;font-weight:600;}
-tr.tot td{font-weight:700;font-size:14px;color:#1d4ed8;padding-top:12px;}
-.foot{margin-top:40px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;letter-spacing:1px;display:flex;justify-content:space-between;}`;
-
-  const content=`<div class="page">
-  <div class="hdr">
-    <div class="brand">FINTRAX &nbsp;&middot;&nbsp; TRAVEL ITINERARY</div>
-    <div class="trip-name">${trip.trip}</div>
-    <div class="trip-dates">${start&&end?fmtDate(start)+" &nbsp;&rarr;&nbsp; "+fmtDate(end):start?fmtDate(start):"Dates TBD"}</div>
-    <span class="status">${trip.status||"Planning"}</span>
-  </div>
-  <div class="summary">
-    <div><div class="s-lbl">Travel Period</div><div class="s-val" style="font-size:12px">${start&&end?fmtDate(start)+" &ndash; "+fmtDate(end):"TBD"}</div></div>
-    <div><div class="s-lbl">Flights</div><div class="s-val">${(trip.legs||[]).length}</div></div>
-    <div><div class="s-lbl">Stays</div><div class="s-val">${(trip.accommodations||[]).length}</div></div>
-    <div><div class="s-lbl">Total Cost</div><div class="s-val blue" style="font-size:14px">${f$(total)}</div></div>
-  </div>
-  ${flightsHtml?`<div class="sec"><div class="sec-title">Flights</div>${flightsHtml}</div>`:""}
-  ${staysHtml?`<div class="sec"><div class="sec-title">Accommodation</div>${staysHtml}</div>`:""}
-  <div class="sec"><div class="sec-title">Cost Summary</div>
-    <div class="item"><table class="ct">${costRows}</table></div>
-  </div>
-  <div class="foot"><span>FINTRAX &nbsp;&middot;&nbsp; PERSONAL FINANCE MANAGER</span><span>Generated ${dateStr}</span></div>
-</div>`;
-
-  html2pdf().set({
-    margin:10,
-    filename:`Itinerary - ${trip.trip}.pdf`,
-    image:{type:"jpeg",quality:0.98},
-    html2canvas:{scale:2,useCORS:true,logging:false},
-    jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},
-  }).from(`<style>${css}</style>${content}`,"string").save();
+  doc.save(`Itinerary - ${trip.trip}.pdf`);
 }
 
 // ── LEISURE MAIN ──────────────────────────────────────────────────────────────
