@@ -1338,8 +1338,10 @@ tr.tot td{font-weight:700;font-size:15px;color:#1d4ed8;padding-top:14px;}
 </div>
 <script>window.onload=function(){window.print();}</script>
 </body></html>`;
-  const w=window.open("","_blank","noopener,width=900,height=800");
-  if(w){w.document.write(html);w.document.close();}
+  const blob=new Blob([html],{type:"text/html"});
+  const url=URL.createObjectURL(blob);
+  const w=window.open(url,"_blank");
+  if(w) w.addEventListener("load",()=>URL.revokeObjectURL(url),{once:true});
 }
 
 // ── LEISURE MAIN ──────────────────────────────────────────────────────────────
