@@ -96,13 +96,16 @@ function StatCard({label,value,sub,color,onClick,active}){
 function Modal({title,onClose,children}){
   const T = useT(); const S = useS();
   React.useEffect(()=>{
-    const prev=document.body.style.overflow;
+    const html=document.documentElement;
+    const prevHtml=html.style.overflow;
+    const prevBody=document.body.style.overflow;
+    html.style.overflow="hidden";
     document.body.style.overflow="hidden";
-    return()=>{ document.body.style.overflow=prev; };
+    return()=>{ html.style.overflow=prevHtml; document.body.style.overflow=prevBody; };
   },[]);
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0}}>
-      <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:600,maxHeight:"92vh",overflowY:"auto"}}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0}} onTouchMove={e=>e.preventDefault()}>
+      <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:600,maxHeight:"92vh",overflowY:"auto"}} onTouchMove={e=>e.stopPropagation()}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
           <div style={{fontWeight:700,fontSize:15,color:T.accent,letterSpacing:1}}>{title}</div>
           <button onClick={onClose} style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:22,lineHeight:1,padding:"0 4px"}}>✕</button>
@@ -1836,8 +1839,8 @@ export default function App(){
 
       {/* ── CASCADE MENU ── */}
       {menuOpen&&(
-        <div style={{position:"fixed",top:52,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",zIndex:199}} onClick={()=>{setMenuOpen(false);setMenuSection("main");}}>
-          <div style={{background:currentT.surface,borderBottom:`1px solid ${currentT.border}`,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+        <div style={{position:"fixed",top:52,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",zIndex:199}} onClick={()=>{setMenuOpen(false);setMenuSection("main");}} onTouchMove={e=>e.preventDefault()}>
+          <div style={{background:currentT.surface,borderBottom:`1px solid ${currentT.border}`,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()} onTouchMove={e=>e.stopPropagation()}>
 
             {/* MAIN MENU */}
             {menuSection==="main"&&(
