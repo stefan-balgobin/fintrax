@@ -1277,7 +1277,7 @@ function exportItinerary(trip){
   fc(LI);dc(BO);lw(0.3);doc.roundedRect(ML,y,CW,28,2,2,"FD");
   const cw4=CW/4;
   [{lbl:"TRAVEL PERIOD",val:start&&end?fmtDate(start)+" – "+fmtDate(end):"TBD",sz:8.5,c:DK,split:!!(start&&end)},
-   {lbl:"FLIGHTS",val:String((trip.legs||[]).length),sz:14,c:DK},
+   {lbl:"FLIGHTS",val:String((trip.legs||[]).reduce((s,l)=>s+(l.flightType==="Round Trip"?2:l.flightType==="Multi-City"?(l.segments||[]).length:1),0)),sz:14,c:DK},
    {lbl:"STAYS",val:String((trip.accommodations||[]).length),sz:14,c:DK},
    {lbl:"TOTAL COST",val:f$(total),sz:10,c:BL}].forEach((si,i)=>{
     const cx=ML+i*cw4+4;
@@ -1449,7 +1449,7 @@ function Leisure({data,setData}){
                   <span style={S.badge(statColors[r.status]||T.muted)}>{r.status}</span>
                 </div>
                 <div style={{display:"flex",gap:10,fontSize:11,color:T.muted,marginBottom:4}}>
-                  {r.legs?.length>0&&<span>✈ {r.legs.length} flight{r.legs.length!==1?"s":""}</span>}
+                  {r.legs?.length>0&&(()=>{const fc=(r.legs||[]).reduce((s,l)=>s+(l.flightType==="Round Trip"?2:l.flightType==="Multi-City"?(l.segments||[]).length:1),0);return <span>✈ {fc} flight{fc!==1?"s":""}</span>;})()}
                   {r.accommodations?.length>0&&<span>🏨 {r.accommodations.length} stay{r.accommodations.length!==1?"s":""}</span>}
                 </div>
                 <div style={{fontSize:9,color:T.border,letterSpacing:1}}>TAP FOR DETAILS →</div>
