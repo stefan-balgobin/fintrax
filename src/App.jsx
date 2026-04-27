@@ -95,6 +95,11 @@ function StatCard({label,value,sub,color,onClick,active}){
 
 function Modal({title,onClose,children}){
   const T = useT(); const S = useS();
+  React.useEffect(()=>{
+    const prev=document.body.style.overflow;
+    document.body.style.overflow="hidden";
+    return()=>{ document.body.style.overflow=prev; };
+  },[]);
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0}}>
       <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:600,maxHeight:"92vh",overflowY:"auto"}}>
