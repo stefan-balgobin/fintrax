@@ -1382,10 +1382,12 @@ function Leisure({data,setData}){
             const tc=tripCost(r);
             return(
               <div key={r.id} onClick={()=>setActiveTrip(r.id)} style={{...S.card,cursor:"pointer",position:"relative",overflow:"hidden",borderColor:T.green+"40"}} onMouseEnter={e=>e.currentTarget.style.boxShadow=`0 0 16px ${T.green}20`} onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
-                <div style={{position:"absolute",top:-8,right:-8,fontSize:60,opacity:0.05}}>✈</div>
+                <div style={{position:"absolute",top:-8,right:-8,fontSize:60,opacity:0.05,pointerEvents:"none"}}>✈</div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                   <div style={{fontWeight:700,fontSize:16,color:T.text,flex:1,paddingRight:8}}>{r.trip}</div>
-                  <button onClick={e=>{e.stopPropagation();exportItinerary(r);}} style={{...S.btn(T.accent),padding:"3px 10px",fontSize:10,flexShrink:0,whiteSpace:"nowrap"}}>↓ PDF</button>
+                  <div onClick={e=>e.stopPropagation()} style={{flexShrink:0}}>
+                    <button onClick={()=>exportItinerary(r)} style={{...S.btn(T.accent),padding:"3px 10px",fontSize:10,whiteSpace:"nowrap"}}>↓ PDF</button>
+                  </div>
                 </div>
                 {(start||end)&&<div style={{fontSize:12,color:T.muted,marginBottom:8}}>{fmtDate(start)}{end?` → ${fmtDate(end)}`:""}</div>}
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:8}}>
