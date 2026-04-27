@@ -1283,7 +1283,7 @@ function exportItinerary(trip){
   bf(8,BL); doc.text("FINTRAX  \xB7  TRAVEL ITINERARY",ML,y); y+=6;
   bf(22,DK); doc.text(trip.trip,ML,y); y+=9;
   nf(12,SL);
-  doc.text(start&&end?fmtDate(start)+" → "+fmtDate(end):start?fmtDate(start):"Dates TBD",ML,y); y+=7;
+  doc.text(start&&end?fmtDate(start)+" - "+fmtDate(end):start?fmtDate(start):"Dates TBD",ML,y); y+=7;
   // Status pill
   const st=(trip.status||"Planning").toUpperCase();
   bf(8,BL); const stW=doc.getTextWidth(st)+8;
