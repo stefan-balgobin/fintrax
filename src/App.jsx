@@ -1335,18 +1335,13 @@ tr.tot td{font-weight:700;font-size:14px;color:#1d4ed8;padding-top:12px;}
   <div class="foot"><span>FINTRAX &nbsp;&middot;&nbsp; PERSONAL FINANCE MANAGER</span><span>Generated ${dateStr}</span></div>
 </div>`;
 
-  const el=document.createElement("div");
-  el.style.cssText="position:fixed;left:-9999px;top:0;width:750px;background:#fff;";
-  el.innerHTML=`<style>${css}</style>${content}`;
-  document.body.appendChild(el);
-
   html2pdf().set({
-    margin:0,
+    margin:10,
     filename:`Itinerary - ${trip.trip}.pdf`,
     image:{type:"jpeg",quality:0.98},
     html2canvas:{scale:2,useCORS:true,logging:false},
-    jsPDF:{unit:"px",format:"a4",orientation:"portrait",hotfixes:["px_scaling"]},
-  }).from(el).save().then(()=>document.body.removeChild(el));
+    jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},
+  }).from(`<style>${css}</style>${content}`,"string").save();
 }
 
 // ── LEISURE MAIN ──────────────────────────────────────────────────────────────
