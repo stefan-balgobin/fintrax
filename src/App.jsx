@@ -1,5 +1,6 @@
 import React, { useState, useContext, createContext } from "react";
 import * as XLSX from "xlsx";
+import html2pdf from "html2pdf.js";
 
 // ── THEME ─────────────────────────────────────────────────────────────────────
 const DARK = {
@@ -1280,68 +1281,72 @@ function exportItinerary(trip){
   ].join("");
 
   const dateStr=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Itinerary — ${trip.trip}</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  const css=`
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Inter',Arial,sans-serif;color:#1e293b;background:#fff;font-size:13px;line-height:1.6;}
-.page{max-width:780px;margin:0 auto;padding:52px 48px;}
-.hdr{border-bottom:3px solid #1d4ed8;padding-bottom:22px;margin-bottom:28px;}
+body{font-family:Arial,sans-serif;color:#1e293b;background:#fff;font-size:13px;line-height:1.6;}
+.page{width:750px;padding:48px 44px;}
+.hdr{border-bottom:3px solid #1d4ed8;padding-bottom:20px;margin-bottom:26px;}
 .brand{font-size:10px;letter-spacing:3px;color:#1d4ed8;font-weight:700;text-transform:uppercase;margin-bottom:10px;}
-.trip-name{font-size:30px;font-weight:700;color:#0f172a;margin-bottom:6px;line-height:1.2;}
-.trip-dates{font-size:14px;color:#475569;margin-bottom:6px;}
+.trip-name{font-size:28px;font-weight:700;color:#0f172a;margin-bottom:6px;line-height:1.2;}
+.trip-dates{font-size:14px;color:#475569;margin-bottom:8px;}
 .status{display:inline-block;padding:3px 14px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border:1.5px solid #1d4ed8;color:#1d4ed8;}
-.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px 24px;margin-bottom:32px;}
-.s-lbl{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;font-weight:600;margin-bottom:4px;}
-.s-val{font-size:18px;font-weight:700;color:#0f172a;}
-.s-val.blue{color:#1d4ed8;}
-.sec-title{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#1d4ed8;font-weight:700;margin-bottom:14px;padding-bottom:8px;border-bottom:1.5px solid #e2e8f0;}
-.sec{margin-bottom:32px;}
-.item{margin-bottom:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px 20px;}
-.item-hdr{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
-.item-num{font-size:11px;font-weight:700;color:#1d4ed8;letter-spacing:1px;white-space:nowrap;}
-.pill{font-size:10px;font-weight:700;background:#1d4ed815;color:#1d4ed8;padding:2px 10px;border-radius:20px;white-space:nowrap;}
-.meta{font-size:12px;color:#64748b;}
-.hr{height:1px;background:#e2e8f0;margin-bottom:12px;}
-.sub{font-size:10px;letter-spacing:2px;font-weight:700;color:#475569;text-transform:uppercase;margin:10px 0 6px;}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:18px 22px;margin-bottom:30px;}
+.s-lbl{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#64748b;font-weight:700;margin-bottom:4px;}
+.s-val{font-size:16px;font-weight:700;color:#0f172a;}
+.blue{color:#1d4ed8;}
+.sec-title{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#1d4ed8;font-weight:700;margin-bottom:12px;padding-bottom:7px;border-bottom:1.5px solid #e2e8f0;}
+.sec{margin-bottom:28px;}
+.item{margin-bottom:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:14px 18px;}
+.item-hdr{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
+.item-num{font-size:10px;font-weight:700;color:#1d4ed8;letter-spacing:1px;}
+.pill{font-size:9px;font-weight:700;background:#dbeafe;color:#1d4ed8;padding:2px 9px;border-radius:20px;}
+.meta{font-size:11px;color:#64748b;}
+.hr{height:1px;background:#e2e8f0;margin-bottom:10px;}
+.sub{font-size:9px;letter-spacing:2px;font-weight:700;color:#475569;text-transform:uppercase;margin:8px 0 5px;}
 .dt{width:100%;border-collapse:collapse;}
-.dt td{padding:4px 6px 4px 0;vertical-align:top;}
-td.lbl{width:100px;font-size:10px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;padding-top:5px;white-space:nowrap;}
-td.val{font-size:13px;color:#1e293b;}
+.dt td{padding:3px 6px 3px 0;vertical-align:top;}
+td.lbl{width:95px;font-size:9px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding-top:4px;white-space:nowrap;}
+td.val{font-size:12px;color:#1e293b;}
 .ct{width:100%;border-collapse:collapse;}
-.ct tr td{padding:9px 0;border-bottom:1px solid #e2e8f0;font-size:13px;}
+.ct tr td{padding:8px 0;border-bottom:1px solid #e2e8f0;font-size:12px;}
 .ct tr:last-child td{border-bottom:none;}
 .ct td:last-child{text-align:right;font-weight:600;}
-tr.tot td{font-weight:700;font-size:15px;color:#1d4ed8;padding-top:14px;}
-.foot{margin-top:48px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;letter-spacing:1px;display:flex;justify-content:space-between;}
-@media print{.page{padding:28px 32px;}@page{margin:1.2cm;}}
-</style></head><body>
-<div class="page">
+tr.tot td{font-weight:700;font-size:14px;color:#1d4ed8;padding-top:12px;}
+.foot{margin-top:40px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;letter-spacing:1px;display:flex;justify-content:space-between;}`;
+
+  const content=`<div class="page">
   <div class="hdr">
-    <div class="brand">FINTRAX &nbsp;·&nbsp; TRAVEL ITINERARY</div>
+    <div class="brand">FINTRAX &nbsp;&middot;&nbsp; TRAVEL ITINERARY</div>
     <div class="trip-name">${trip.trip}</div>
-    <div class="trip-dates">${start&&end?fmtDate(start)+" &nbsp;→&nbsp; "+fmtDate(end):start?fmtDate(start):"Dates TBD"}</div>
+    <div class="trip-dates">${start&&end?fmtDate(start)+" &nbsp;&rarr;&nbsp; "+fmtDate(end):start?fmtDate(start):"Dates TBD"}</div>
     <span class="status">${trip.status||"Planning"}</span>
   </div>
   <div class="summary">
-    <div><div class="s-lbl">Travel Period</div><div class="s-val" style="font-size:13px">${start&&end?fmtDate(start)+" – "+fmtDate(end):"TBD"}</div></div>
+    <div><div class="s-lbl">Travel Period</div><div class="s-val" style="font-size:12px">${start&&end?fmtDate(start)+" &ndash; "+fmtDate(end):"TBD"}</div></div>
     <div><div class="s-lbl">Flights</div><div class="s-val">${(trip.legs||[]).length}</div></div>
     <div><div class="s-lbl">Stays</div><div class="s-val">${(trip.accommodations||[]).length}</div></div>
-    <div><div class="s-lbl">Total Cost</div><div class="s-val blue" style="font-size:15px">${f$(total)}</div></div>
+    <div><div class="s-lbl">Total Cost</div><div class="s-val blue" style="font-size:14px">${f$(total)}</div></div>
   </div>
-  ${flightsHtml?`<div class="sec"><div class="sec-title">&#9992;&nbsp; Flights</div>${flightsHtml}</div>`:""}
-  ${staysHtml?`<div class="sec"><div class="sec-title">&#127968;&nbsp; Accommodation</div>${staysHtml}</div>`:""}
-  <div class="sec"><div class="sec-title">&#9654;&nbsp; Cost Summary</div>
+  ${flightsHtml?`<div class="sec"><div class="sec-title">Flights</div>${flightsHtml}</div>`:""}
+  ${staysHtml?`<div class="sec"><div class="sec-title">Accommodation</div>${staysHtml}</div>`:""}
+  <div class="sec"><div class="sec-title">Cost Summary</div>
     <div class="item"><table class="ct">${costRows}</table></div>
   </div>
-  <div class="foot"><span>FINTRAX &nbsp;·&nbsp; PERSONAL FINANCE MANAGER</span><span>Generated ${dateStr}</span></div>
-</div>
-<script>window.onload=function(){window.print();}</script>
-</body></html>`;
-  const blob=new Blob([html],{type:"text/html"});
-  const url=URL.createObjectURL(blob);
-  const w=window.open(url,"_blank");
-  if(w) w.addEventListener("load",()=>URL.revokeObjectURL(url),{once:true});
+  <div class="foot"><span>FINTRAX &nbsp;&middot;&nbsp; PERSONAL FINANCE MANAGER</span><span>Generated ${dateStr}</span></div>
+</div>`;
+
+  const el=document.createElement("div");
+  el.style.cssText="position:fixed;left:-9999px;top:0;width:750px;background:#fff;";
+  el.innerHTML=`<style>${css}</style>${content}`;
+  document.body.appendChild(el);
+
+  html2pdf().set({
+    margin:0,
+    filename:`Itinerary - ${trip.trip}.pdf`,
+    image:{type:"jpeg",quality:0.98},
+    html2canvas:{scale:2,useCORS:true,logging:false},
+    jsPDF:{unit:"px",format:"a4",orientation:"portrait",hotfixes:["px_scaling"]},
+  }).from(el).save().then(()=>document.body.removeChild(el));
 }
 
 // ── LEISURE MAIN ──────────────────────────────────────────────────────────────
