@@ -983,8 +983,9 @@ function CarMaintenance({data,setData}){
 }
 
 // ── LEISURE — LegCard (top-level) ─────────────────────────────────────────────
-function LegCard({leg,onEdit,onDelete}){
+function LegCard({leg,onEdit,onDelete,isPlanning,onToggleSelect}){
   const T = useT(); const S = useS();
+  const isSelected = leg.selected ?? true;
   const typeColors = {"One Way":T.yellow,"Round Trip":T.accent,"Multi-City":T.purple};
   const tc = typeColors[leg.flightType]||T.muted;
   const segs = leg.segments||[];
@@ -994,7 +995,7 @@ function LegCard({leg,onEdit,onDelete}){
       ? `${leg.from||"?"} / ${leg.to||"?"} / ${leg.from||"?"}`
       : `${leg.from||"?"} / ${leg.to||"?"}`;
   return(
-    <div style={{background:T.bg,borderRadius:10,padding:"12px",border:`1px solid ${T.border}30`,marginBottom:8}}>
+    <div style={{background:T.bg,borderRadius:10,padding:"12px",border:isPlanning?(isSelected?`2px solid ${T.green}`:`1px solid ${T.border}30`):`1px solid ${T.border}30`,marginBottom:8,opacity:isPlanning&&!isSelected?0.65:1}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:8}}>
         <div style={{fontWeight:700,fontSize:13,color:T.text,flex:1,lineHeight:1.3}}>{routeText}</div>
         <span style={{...S.badge(tc),fontSize:10,flexShrink:0}}>{leg.flightType}</span>
@@ -1036,7 +1037,10 @@ function LegCard({leg,onEdit,onDelete}){
         ))}
       </div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:`1px solid ${T.border}20`,paddingTop:8}}>
-        <span style={{fontSize:14,fontWeight:700,color:leg.flightCost?T.green:T.muted}}>{leg.flightCost?fmt(leg.flightCost):"No cost"}</span>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:14,fontWeight:700,color:isSelected&&leg.flightCost?T.green:T.muted}}>{leg.flightCost?fmt(leg.flightCost):"No cost"}</span>
+          {isPlanning&&<button onClick={onToggleSelect} style={{...S.btn(isSelected?T.green:T.accent),padding:"3px 10px",fontSize:11}}>{isSelected?"✓ Selected":"+ Select"}</button>}
+        </div>
         <ItemActions label={leg.flightType+" flight"} onEdit={onEdit} onDelete={onDelete}/>
       </div>
     </div>
@@ -1122,16 +1126,23 @@ function TripDetail({trip,onBack,onSave}){
   const [filesOpen,setFilesOpen] = useState(false);
   const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
   const updA = (k,v)=>setAForm(f=>({...f,[k]:v}));
+  const isPlanning = form.status==="Planning";
   const statColors = {Booked:T.accent,Planning:T.muted};
   const getFirst = leg=>{if(!leg)return null;if(leg.flightType==="Multi-City")return leg.segments?.[0]?.departDate||null;return leg.departDate||null;};
   const getLast = leg=>{if(!leg)return null;if(leg.flightType==="Multi-City"){const s=leg.segments||[];return s[s.length-1]?.arriveDate||s[s.length-1]?.departDate||null;}if(leg.flightType==="Round Trip")return leg.returnArriveDate||leg.returnDate||null;return leg.arriveDate||leg.departDate||null;};
-  const sorted = [...form.legs].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));
+  const selectedLegs = form.legs.filter(l=>l.selected!==false);
+  const selectedAccs = form.accommodations.filter(a=>a.selected!==false);
+  const displayLegs = isPlanning?form.legs:selectedLegs;
+  const displayAccs = isPlanning?form.accommodations:selectedAccs;
+  const sorted = [...selectedLegs].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));
   const autoStart = sorted.length>0?getFirst(sorted[0]):null;
   const autoEnd = sorted.length>0?getLast(sorted[sorted.length-1]):null;
-  const totalF = form.legs.reduce((s,l)=>s+Number(l.flightCost||0),0);
-  const totalA = form.accommodations.reduce((s,a)=>s+Number(a.cost||0),0);
-  function saveLeg(leg){setForm(f=>({...f,legs:fModal==="add"?[...f.legs,leg]:f.legs.map(l=>l.id===leg.id?leg:l)}));setFModal(null);}
-  function saveAcc(){const entry={...aForm,id:aModal==="add"?nextId(form.accommodations):aForm.id};setForm(f=>({...f,accommodations:aModal==="add"?[...f.accommodations,entry]:f.accommodations.map(a=>a.id===entry.id?entry:a)}));setAModal(null);}
+  const totalF = selectedLegs.reduce((s,l)=>s+Number(l.flightCost||0),0);
+  const totalA = selectedAccs.reduce((s,a)=>s+Number(a.cost||0),0);
+  function toggleLegSelect(id){setForm(f=>({...f,legs:f.legs.map(l=>l.id===id?{...l,selected:!(l.selected??true)}:l)}));}
+  function toggleAccSelect(id){setForm(f=>({...f,accommodations:f.accommodations.map(a=>a.id===id?{...a,selected:!(a.selected??true)}:a)}));}
+  function saveLeg(leg){const entry=fModal==="add"?{...leg,selected:isPlanning?false:true}:leg;setForm(f=>({...f,legs:fModal==="add"?[...f.legs,entry]:f.legs.map(l=>l.id===leg.id?leg:l)}));setFModal(null);}
+  function saveAcc(){const entry={...aForm,id:aModal==="add"?nextId(form.accommodations):aForm.id,...(aModal==="add"?{selected:isPlanning?false:true}:{})};setForm(f=>({...f,accommodations:aModal==="add"?[...f.accommodations,entry]:f.accommodations.map(a=>a.id===entry.id?entry:a)}));setAModal(null);}
   function uploadFile(e){Array.from(e.target.files).forEach(file=>{const r=new FileReader();r.onload=ev=>setForm(f=>({...f,files:[...f.files,{name:file.name,type:file.type,size:file.size,dataUrl:ev.target.result,uploadedAt:new Date().toLocaleDateString()}]}));r.readAsDataURL(file);});e.target.value="";}
   function dlFile(f){const a=document.createElement("a");a.href=f.dataUrl;a.download=f.name;a.click();}
   return(
@@ -1172,8 +1183,8 @@ function TripDetail({trip,onBack,onSave}){
           <button style={{...S.btn(T.green),padding:"6px 14px",fontSize:12}} onClick={()=>setFModal("add")}>+ Add Flight</button>
         </div>
         {form.legs.length===0&&<div style={{fontSize:12,color:T.muted,textAlign:"center",padding:"8px 0"}}>No flights added yet.</div>}
-        {form.legs.map(leg=>(
-          <LegCard key={leg.id} leg={leg} onEdit={()=>setFModal(leg)} onDelete={()=>setForm(f=>({...f,legs:f.legs.filter(l=>l.id!==leg.id)}))}/>
+        {displayLegs.map(leg=>(
+          <LegCard key={leg.id} leg={leg} isPlanning={isPlanning} onToggleSelect={()=>toggleLegSelect(leg.id)} onEdit={()=>setFModal(leg)} onDelete={()=>setForm(f=>({...f,legs:f.legs.filter(l=>l.id!==leg.id)}))}/>
         ))}
       </div>
       <div style={S.card}>
@@ -1182,21 +1193,27 @@ function TripDetail({trip,onBack,onSave}){
           <button style={{...S.btn(T.green),padding:"6px 14px",fontSize:12}} onClick={()=>{setAForm({city:"",hotel:"",checkIn:"",checkOut:"",checkInTime:"",cost:""});setAModal("add");}}>+ Add Stay</button>
         </div>
         {form.accommodations.length===0&&<div style={{fontSize:12,color:T.muted,textAlign:"center",padding:"8px 0"}}>No accommodation added yet.</div>}
-        {form.accommodations.map(acc=>(
-          <div key={acc.id} style={{background:T.bg,borderRadius:10,padding:"12px",border:`1px solid ${T.border}30`,marginBottom:8}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:13,marginBottom:6}}>{acc.hotel||"Accommodation"} <span style={{color:T.muted,fontWeight:400,fontSize:12}}>· {acc.city}</span></div>
-                <div style={{fontSize:12,color:T.muted,display:"flex",flexDirection:"column",gap:3}}>
-                  {acc.checkIn&&<span>In: {fmtDate(acc.checkIn)}{acc.checkInTime?` ${acc.checkInTime}`:""}</span>}
-                  {acc.checkOut&&<span>Out: {fmtDate(acc.checkOut)}</span>}
-                  {acc.cost&&<span style={{color:T.purple}}>💰 {fmt(acc.cost)}</span>}
+        {displayAccs.map(acc=>{
+          const accSelected=acc.selected??true;
+          return(
+            <div key={acc.id} style={{background:T.bg,borderRadius:10,padding:"12px",border:isPlanning?(accSelected?`2px solid ${T.green}`:`1px solid ${T.border}30`):`1px solid ${T.border}30`,marginBottom:8,opacity:isPlanning&&!accSelected?0.65:1}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:13,marginBottom:6}}>{acc.hotel||"Accommodation"} <span style={{color:T.muted,fontWeight:400,fontSize:12}}>· {acc.city}</span></div>
+                  <div style={{fontSize:12,color:T.muted,display:"flex",flexDirection:"column",gap:3}}>
+                    {acc.checkIn&&<span>In: {fmtDate(acc.checkIn)}{acc.checkInTime?` ${acc.checkInTime}`:""}</span>}
+                    {acc.checkOut&&<span>Out: {fmtDate(acc.checkOut)}</span>}
+                    {acc.cost&&<span style={{color:accSelected?T.purple:T.muted}}>💰 {fmt(acc.cost)}</span>}
+                  </div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+                  {isPlanning&&<button onClick={()=>toggleAccSelect(acc.id)} style={{...S.btn(accSelected?T.green:T.accent),padding:"3px 10px",fontSize:11}}>{accSelected?"✓ Selected":"+ Select"}</button>}
+                  <ItemActions label={acc.hotel||acc.city} onEdit={()=>{setAForm({...acc});setAModal("edit");}} onDelete={()=>setForm(f=>({...f,accommodations:f.accommodations.filter(a=>a.id!==acc.id)}))}/>
                 </div>
               </div>
-              <ItemActions label={acc.hotel||acc.city} onEdit={()=>{setAForm({...acc});setAModal("edit");}} onDelete={()=>setForm(f=>({...f,accommodations:f.accommodations.filter(a=>a.id!==acc.id)}))}/>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <div style={S.card}>
         <button style={S.outlineBtn(filesOpen)} onClick={()=>setFilesOpen(o=>!o)}>Attached Files ({form.files.length})</button>
@@ -1236,12 +1253,14 @@ function TripDetail({trip,onBack,onSave}){
 
 // ── ITINERARY PDF EXPORT ──────────────────────────────────────────────────────
 function exportItinerary(trip){
+  const legs=(trip.legs||[]).filter(l=>l.selected!==false);
+  const accommodations=(trip.accommodations||[]).filter(a=>a.selected!==false);
   const getFirst=leg=>{if(!leg)return null;if(leg.flightType==="Multi-City")return leg.segments?.[0]?.departDate||null;return leg.departDate||null;};
   const getLast=leg=>{if(!leg)return null;if(leg.flightType==="Multi-City"){const s=leg.segments||[];return s[s.length-1]?.arriveDate||s[s.length-1]?.departDate||null;}if(leg.flightType==="Round Trip")return leg.returnArriveDate||leg.returnDate||null;return leg.arriveDate||leg.departDate||null;};
-  const sorted=[...(trip.legs||[])].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));
+  const sorted=[...legs].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));
   const start=sorted.length>0?getFirst(sorted[0]):null;
   const end=sorted.length>0?getLast(sorted[sorted.length-1]):null;
-  const total=(trip.legs||[]).reduce((s,l)=>s+Number(l.flightCost||0),0)+(trip.accommodations||[]).reduce((s,a)=>s+Number(a.cost||0),0);
+  const total=legs.reduce((s,l)=>s+Number(l.flightCost||0),0)+accommodations.reduce((s,a)=>s+Number(a.cost||0),0);
   const f$=n=>n==null||n===""?"—":`$${Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})} TTD`;
   const fmtT=t=>{if(!t)return"";const[h,m]=t.split(":");const hr=+h;return`${hr%12||12}:${m} ${hr<12?"AM":"PM"}`;};
 
@@ -1277,8 +1296,8 @@ function exportItinerary(trip){
   fc(LI);dc(BO);lw(0.3);doc.roundedRect(ML,y,CW,28,2,2,"FD");
   const cw4=CW/4;
   [{lbl:"TRAVEL PERIOD",val:start&&end?fmtDate(start)+" – "+fmtDate(end):"TBD",sz:8.5,c:DK,split:!!(start&&end)},
-   {lbl:"FLIGHTS",val:String((trip.legs||[]).reduce((s,l)=>s+(l.flightType==="Round Trip"?2:l.flightType==="Multi-City"?(l.segments||[]).length:1),0)),sz:14,c:DK},
-   {lbl:"STAYS",val:String((trip.accommodations||[]).length),sz:14,c:DK},
+   {lbl:"FLIGHTS",val:String(legs.reduce((s,l)=>s+(l.flightType==="Round Trip"?2:l.flightType==="Multi-City"?(l.segments||[]).length:1),0)),sz:14,c:DK},
+   {lbl:"STAYS",val:String(accommodations.length),sz:14,c:DK},
    {lbl:"TOTAL COST",val:f$(total),sz:10,c:BL}].forEach((si,i)=>{
     const cx=ML+i*cw4+4;
     bf(7,MU); doc.text(si.lbl,cx,y+8);
@@ -1306,9 +1325,9 @@ function exportItinerary(trip){
   };
 
   // FLIGHTS
-  if((trip.legs||[]).length>0){
+  if(legs.length>0){
     sec("FLIGHTS");
-    (trip.legs||[]).forEach((leg,i)=>{
+    legs.forEach((leg,i)=>{
       const h=flightH(leg); cardBase(h);
       bf(9,BL); doc.text(`FLIGHT ${i+1}`,ML+4,y+7);
       const fnW=doc.getTextWidth(`FLIGHT ${i+1}`);
@@ -1344,9 +1363,9 @@ function exportItinerary(trip){
   }
 
   // ACCOMMODATION
-  if((trip.accommodations||[]).length>0){
+  if(accommodations.length>0){
     sec("ACCOMMODATION");
-    (trip.accommodations||[]).forEach((acc,i)=>{
+    accommodations.forEach((acc,i)=>{
       const h=accH(acc); cardBase(h);
       bf(9,BL); doc.text(`STAY ${i+1}`,ML+4,y+7);
       if(acc.hotel){const sw=doc.getTextWidth(`STAY ${i+1}`);nf(9,MU);doc.text(acc.hotel+(acc.city?" \xB7 "+acc.city:""),ML+4+sw+3,y+7);}
@@ -1363,8 +1382,8 @@ function exportItinerary(trip){
 
   // COST SUMMARY
   const costItems=[
-    ...(trip.legs||[]).map((l,i)=>({lbl:`Flight ${i+1}${l.airline?" \xB7 "+l.airline:""}${l.flightNo?" #"+l.flightNo:""}`,val:f$(l.flightCost)})),
-    ...(trip.accommodations||[]).map((a,i)=>({lbl:`Stay ${i+1}${a.hotel?" \xB7 "+a.hotel:""}`,val:f$(a.cost)})),
+    ...legs.map((l,i)=>({lbl:`Flight ${i+1}${l.airline?" \xB7 "+l.airline:""}${l.flightNo?" #"+l.flightNo:""}`,val:f$(l.flightCost)})),
+    ...accommodations.map((a,i)=>({lbl:`Stay ${i+1}${a.hotel?" \xB7 "+a.hotel:""}`,val:f$(a.cost)})),
   ];
   const cstH=10+costItems.length*9+18;
   sec("COST SUMMARY"); chk(cstH+4);
@@ -1406,7 +1425,7 @@ function Leisure({data,setData}){
   const getFirst = leg=>{if(!leg)return null;if(leg.flightType==="Multi-City")return leg.segments?.[0]?.departDate||null;return leg.departDate||null;};
   const getLast = leg=>{if(!leg)return null;if(leg.flightType==="Multi-City"){const s=leg.segments||[];return s[s.length-1]?.arriveDate||s[s.length-1]?.departDate||null;}if(leg.flightType==="Round Trip")return leg.returnArriveDate||leg.returnDate||null;return leg.arriveDate||leg.departDate||null;};
   const tripDates = r=>{const sl=[...(r.legs||[])].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));return{start:sl.length>0?getFirst(sl[0]):null,end:sl.length>0?getLast(sl[sl.length-1]):null};};
-  const tripCost = r=>(r.legs||[]).reduce((s,l)=>s+Number(l.flightCost||0),0)+(r.accommodations||[]).reduce((s,a)=>s+Number(a.cost||0),0);
+  const tripCost = r=>(r.legs||[]).filter(l=>l.selected!==false).reduce((s,l)=>s+Number(l.flightCost||0),0)+(r.accommodations||[]).filter(a=>a.selected!==false).reduce((s,a)=>s+Number(a.cost||0),0);
   const cyTrips = data.leisure.filter(r=>{const fd=getFirst([...(r.legs||[])].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""))[0]);return !fd||logYear(fd)===CY;});
   const total = cyTrips.reduce((s,r)=>s+tripCost(r),0);
   const shown = data.leisure.filter(r=>!search||r.trip.toLowerCase().includes(search.toLowerCase())||(r.status||"").toLowerCase().includes(search.toLowerCase()));
@@ -1449,7 +1468,7 @@ function Leisure({data,setData}){
                   <span style={S.badge(statColors[r.status]||T.muted)}>{r.status}</span>
                 </div>
                 <div style={{display:"flex",gap:10,fontSize:11,color:T.muted,marginBottom:4}}>
-                  {r.legs?.length>0&&(()=>{const fc=(r.legs||[]).reduce((s,l)=>s+(l.flightType==="Round Trip"?2:l.flightType==="Multi-City"?(l.segments||[]).length:1),0);return <span>✈ {fc} flight{fc!==1?"s":""}</span>;})()}
+                  {r.legs?.length>0&&(()=>{const sl=(r.legs||[]).filter(l=>l.selected!==false);const fc=sl.reduce((s,l)=>s+(l.flightType==="Round Trip"?2:l.flightType==="Multi-City"?(l.segments||[]).length:1),0);return fc>0?<span>✈ {fc} flight{fc!==1?"s":""}</span>:null;})()}
                   {r.accommodations?.length>0&&<span>🏨 {r.accommodations.length} stay{r.accommodations.length!==1?"s":""}</span>}
                 </div>
                 <div style={{fontSize:9,color:T.border,letterSpacing:1}}>TAP FOR DETAILS →</div>
