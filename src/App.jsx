@@ -25,14 +25,15 @@ const T = DARK;
 const fmt = n => n == null || n === "" ? "—" : `$${Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const nextId = arr => arr.length ? Math.max(...arr.map(x => x.id)) + 1 : 1;
 const CY = new Date().getFullYear();
-const fmtDate = str => { if(!str||str==="—") return "—"; const d=new Date(str); return isNaN(d)?str:d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}); };
-const timeLeft = exp => { if(!exp) return "—"; const diff=new Date(exp)-new Date(); if(diff<0) return "Expired"; const days=Math.floor(diff/86400000),y=Math.floor(days/365),m=Math.floor((days%365)/30),d=days%30; if(y>0) return `${y}y ${m}m ${d}d`; if(m>0) return `${m}m ${d}d`; return `${d}d`; };
+const parseDate = str => { if(!str) return null; const m=str.match(/^(\d{4})-(\d{2})-(\d{2})$/); return m?new Date(+m[1],+m[2]-1,+m[3]):new Date(str); };
+const fmtDate = str => { if(!str||str==="—") return "—"; const d=parseDate(str); return !d||isNaN(d)?str:d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}); };
+const timeLeft = exp => { if(!exp) return "—"; const diff=parseDate(exp)-new Date(); if(diff<0) return "Expired"; const days=Math.floor(diff/86400000),y=Math.floor(days/365),m=Math.floor((days%365)/30),d=days%30; if(y>0) return `${y}y ${m}m ${d}d`; if(m>0) return `${m}m ${d}d`; return `${d}d`; };
 const urgencyColor = (tl, t=T) => (!tl||tl==="Expired") ? t.red : !tl.includes("y") ? t.yellow : t.green;
-const expiryYear = s => s ? new Date(s).getFullYear() : null;
-const logYear = s => s && s!=="-" ? new Date(s).getFullYear() : null;
+const expiryYear = s => { const d=parseDate(s); return d&&!isNaN(d)?d.getFullYear():null; };
+const logYear = s => { if(!s||s==="-") return null; const d=parseDate(s); return d&&!isNaN(d)?d.getFullYear():null; };
 const effectiveRenews = sub => {
   if(!sub.autoRenew||!sub.renews||sub.cancelled) return sub.renews||"";
-  let d=new Date(sub.renews);
+  let d=parseDate(sub.renews);
   const today=new Date();
   if(d>today) return sub.renews;
   while(d<=today){ if(sub.type==="Annual") d.setFullYear(d.getFullYear()+1); else d.setMonth(d.getMonth()+1); }
@@ -258,8 +259,8 @@ function Overview({data, enabledPages}){
   const alerts = [
     ...(ep.certs!==false ? data.certs.map(c=>({name:c.name,expiry:c.expiry,type:"Cert"})) : []),
     ...(ep.personal!==false ? data.personalDocs.map(d=>({name:d.type,expiry:d.expiry,type:"Doc"})) : []),
-  ].filter(d=>d.expiry&&urgencyColor(timeLeft(d.expiry),T)!==T.green).sort((a,b)=>new Date(a.expiry)-new Date(b.expiry));
-  const soon30 = ep.subscriptions!==false ? data.subscriptions.filter(s=>{if(s.cancelled)return false;const er=effectiveRenews(s);if(!er)return false;const diff=new Date(er)-new Date();return diff>0&&diff<=30*86400000;}).sort((a,b)=>new Date(effectiveRenews(a))-new Date(effectiveRenews(b))) : [];
+  ].filter(d=>d.expiry&&urgencyColor(timeLeft(d.expiry),T)!==T.green).sort((a,b)=>parseDate(a.expiry)-parseDate(b.expiry));
+  const soon30 = ep.subscriptions!==false ? data.subscriptions.filter(s=>{if(s.cancelled)return false;const er=effectiveRenews(s);if(!er)return false;const diff=parseDate(er)-new Date();return diff>0&&diff<=30*86400000;}).sort((a,b)=>parseDate(effectiveRenews(a))-parseDate(effectiveRenews(b))) : [];
 
   // ── spending breakdown rows (only enabled pages) ──
   const breakdown = [
