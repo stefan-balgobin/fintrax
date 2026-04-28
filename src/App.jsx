@@ -35,6 +35,7 @@ const logYear = s => { if(!s||s==="-") return null; const d=parseDate(s); return
 const effectiveRenews = sub => {
   if(!sub.autoRenew||!sub.renews||sub.cancelled) return sub.renews||"";
   let d=parseDate(sub.renews);
+  if(!d||isNaN(d)) return sub.renews||"";
   const today=new Date();
   if(d>today) return sub.renews;
   while(d<=today){ if(sub.type==="Annual") d.setFullYear(d.getFullYear()+1); else d.setMonth(d.getMonth()+1); }
@@ -1182,7 +1183,7 @@ function TripDetail({trip,onBack,onSave}){
           <div style={{fontSize:12,letterSpacing:2,color:T.accent,textTransform:"uppercase",fontWeight:700}}>✈ Flights</div>
           <button style={{...S.btn(T.green),padding:"6px 14px",fontSize:12}} onClick={()=>setFModal("add")}>+ Add Flight</button>
         </div>
-        {form.legs.length===0&&<div style={{fontSize:12,color:T.muted,textAlign:"center",padding:"8px 0"}}>No flights added yet.</div>}
+        {displayLegs.length===0&&<div style={{fontSize:12,color:T.muted,textAlign:"center",padding:"8px 0"}}>No flights added yet.</div>}
         {displayLegs.map(leg=>(
           <LegCard key={leg.id} leg={leg} isPlanning={isPlanning} onToggleSelect={()=>toggleLegSelect(leg.id)} onEdit={()=>setFModal(leg)} onDelete={()=>setForm(f=>({...f,legs:f.legs.filter(l=>l.id!==leg.id)}))}/>
         ))}
@@ -1192,7 +1193,7 @@ function TripDetail({trip,onBack,onSave}){
           <div style={{fontSize:12,letterSpacing:2,color:T.accent,textTransform:"uppercase",fontWeight:700}}>🏨 Accommodation</div>
           <button style={{...S.btn(T.green),padding:"6px 14px",fontSize:12}} onClick={()=>{setAForm({city:"",hotel:"",checkIn:"",checkOut:"",checkInTime:"",cost:""});setAModal("add");}}>+ Add Stay</button>
         </div>
-        {form.accommodations.length===0&&<div style={{fontSize:12,color:T.muted,textAlign:"center",padding:"8px 0"}}>No accommodation added yet.</div>}
+        {displayAccs.length===0&&<div style={{fontSize:12,color:T.muted,textAlign:"center",padding:"8px 0"}}>No accommodation added yet.</div>}
         {displayAccs.map(acc=>{
           const accSelected=acc.selected??true;
           return(
@@ -1262,7 +1263,7 @@ function exportItinerary(trip){
   const end=sorted.length>0?getLast(sorted[sorted.length-1]):null;
   const total=legs.reduce((s,l)=>s+Number(l.flightCost||0),0)+accommodations.reduce((s,a)=>s+Number(a.cost||0),0);
   const f$=n=>n==null||n===""?"—":`$${Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})} TTD`;
-  const fmtT=t=>{if(!t)return"";const[h,m]=t.split(":");const hr=+h;return`${hr%12||12}:${m} ${hr<12?"AM":"PM"}`;};
+  const fmtT=t=>{if(!t||!t.includes(":"))return"";const[h,m]=t.split(":");const hr=+h;return`${hr%12||12}:${m} ${hr<12?"AM":"PM"}`;};
 
   // ── jsPDF layout ──
   const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
@@ -1424,7 +1425,7 @@ function Leisure({data,setData}){
   const statColors = {Booked:T.accent,Planning:T.muted};
   const getFirst = leg=>{if(!leg)return null;if(leg.flightType==="Multi-City")return leg.segments?.[0]?.departDate||null;return leg.departDate||null;};
   const getLast = leg=>{if(!leg)return null;if(leg.flightType==="Multi-City"){const s=leg.segments||[];return s[s.length-1]?.arriveDate||s[s.length-1]?.departDate||null;}if(leg.flightType==="Round Trip")return leg.returnArriveDate||leg.returnDate||null;return leg.arriveDate||leg.departDate||null;};
-  const tripDates = r=>{const sl=[...(r.legs||[])].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));return{start:sl.length>0?getFirst(sl[0]):null,end:sl.length>0?getLast(sl[sl.length-1]):null};};
+  const tripDates = r=>{const sl=[...(r.legs||[]).filter(l=>l.selected!==false)].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));return{start:sl.length>0?getFirst(sl[0]):null,end:sl.length>0?getLast(sl[sl.length-1]):null};};
   const tripCost = r=>(r.legs||[]).filter(l=>l.selected!==false).reduce((s,l)=>s+Number(l.flightCost||0),0)+(r.accommodations||[]).filter(a=>a.selected!==false).reduce((s,a)=>s+Number(a.cost||0),0);
   const cyTrips = data.leisure.filter(r=>{const fd=getFirst([...(r.legs||[])].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""))[0]);return !fd||logYear(fd)===CY;});
   const total = cyTrips.reduce((s,r)=>s+tripCost(r),0);
@@ -1469,7 +1470,7 @@ function Leisure({data,setData}){
                 </div>
                 <div style={{display:"flex",gap:10,fontSize:11,color:T.muted,marginBottom:4}}>
                   {r.legs?.length>0&&(()=>{const sl=(r.legs||[]).filter(l=>l.selected!==false);const fc=sl.reduce((s,l)=>s+(l.flightType==="Round Trip"?2:l.flightType==="Multi-City"?(l.segments||[]).length:1),0);return fc>0?<span>✈ {fc} flight{fc!==1?"s":""}</span>:null;})()}
-                  {r.accommodations?.length>0&&<span>🏨 {r.accommodations.length} stay{r.accommodations.length!==1?"s":""}</span>}
+                  {r.accommodations?.length>0&&(()=>{const sa=(r.accommodations||[]).filter(a=>a.selected!==false);return sa.length>0?<span>🏨 {sa.length} stay{sa.length!==1?"s":""}</span>:null;})()}
                 </div>
                 <div style={{fontSize:9,color:T.border,letterSpacing:1}}>TAP FOR DETAILS →</div>
                 <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}} onClick={e=>e.stopPropagation()}>
@@ -1877,23 +1878,25 @@ export default function App(){
       const aoa = []; // array of arrays
 
       data.leisure.forEach((r, tripIdx)=>{
-        const sl=[...(r.legs||[])].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));
-        const flightCost=(r.legs||[]).reduce((s,l)=>s+Number(l.flightCost||0),0);
-        const accCost=(r.accommodations||[]).reduce((s,a)=>s+Number(a.cost||0),0);
+        const selLegs=(r.legs||[]).filter(l=>l.selected!==false);
+        const selAccs=(r.accommodations||[]).filter(a=>a.selected!==false);
+        const sl=[...selLegs].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));
+        const flightCost=selLegs.reduce((s,l)=>s+Number(l.flightCost||0),0);
+        const accCost=selAccs.reduce((s,a)=>s+Number(a.cost||0),0);
         const startDate=sl.length>0?getFirst(sl[0]):"", endDate=sl.length>0?getLast(sl[sl.length-1]):"";
 
         // ── Trip title ──
         aoa.push([`TRIP: ${r.trip}`,"","","","","","","","",""]);
         // ── Trip summary ──
         aoa.push(["Status:", r.status||"Planning", "", "Period:", startDate, "→", endDate, "", "Total Cost (TTD):", flightCost+accCost]);
-        aoa.push(["Flights:", (r.legs||[]).length, "", "Stays:", (r.accommodations||[]).length, "", "Flight Cost (TTD):", flightCost, "Stay Cost (TTD):", accCost]);
+        aoa.push(["Flights:", selLegs.length, "", "Stays:", selAccs.length, "", "Flight Cost (TTD):", flightCost, "Stay Cost (TTD):", accCost]);
         aoa.push([""]);
 
         // ── Flights ──
-        if((r.legs||[]).length>0){
+        if(selLegs.length>0){
           aoa.push(["FLIGHTS","","","","","","","","",""]);
           aoa.push(["#","Type","From","To","Airline","Flight No.","Depart Date","Depart Time","Arrive Date","Arrive Time","Return Date","Return Time","Cost (TTD)"]);
-          r.legs.forEach((leg,li)=>{
+          selLegs.forEach((leg,li)=>{
             if(leg.flightType==="Multi-City"){
               const segs=leg.segments||[];
               const fullRoute=segs.map(s=>s.from).concat(segs.length>0?[segs[segs.length-1].to]:[]).join(" → ");
@@ -1913,10 +1916,10 @@ export default function App(){
         }
 
         // ── Accommodation ──
-        if((r.accommodations||[]).length>0){
+        if(selAccs.length>0){
           aoa.push(["ACCOMMODATION","","","","","","","","",""]);
           aoa.push(["#","Hotel / Property","City","","","","Check-in Date","Check-in Time","Check-out Date","","Cost (TTD)"]);
-          r.accommodations.forEach((a,ai)=>{
+          selAccs.forEach((a,ai)=>{
             aoa.push([ai+1,a.hotel||"",a.city||"","","","",a.checkIn||"",a.checkInTime||"",a.checkOut||"","",Number(a.cost||0)]);
           });
           aoa.push([""]);
