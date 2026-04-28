@@ -1410,6 +1410,7 @@ function exportItinerary(trip){
   doc.text("FINTRAX  \xB7  PERSONAL FINANCE MANAGER",ML,footY);
   doc.text("Generated "+new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"}),ML+CW,footY,{align:"right"});
 
+  window.open(doc.output("bloburl"), "_blank", "noopener");
   doc.save(`Itinerary - ${trip.trip}.pdf`);
 }
 
