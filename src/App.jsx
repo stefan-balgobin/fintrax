@@ -248,7 +248,7 @@ function Overview({data, enabledPages}){
     const legs=(r.legs||[]).slice().sort((a,b)=>((a.flightType==="Multi-City"?a.segments?.[0]?.departDate:a.departDate)||"").localeCompare((b.flightType==="Multi-City"?b.segments?.[0]?.departDate:b.departDate)||""));
     const fd=legs.length>0?(legs[0].flightType==="Multi-City"?legs[0].segments?.[0]?.departDate:legs[0].departDate):null;
     if(fd&&logYear(fd)!==CY) return s;
-    return s+(r.legs||[]).reduce((sf,l)=>sf+Number(l.flightCost||0),0)+(r.accommodations||[]).reduce((sa,a)=>sa+Number(a.cost||0),0);
+    return s+(r.legs||[]).filter(l=>l.selected!==false).reduce((sf,l)=>sf+Number(l.flightCost||0),0)+(r.accommodations||[]).filter(a=>a.selected!==false).reduce((sa,a)=>sa+Number(a.cost||0),0);
   },0) : 0;
   const manualTotal  = data.expenses.reduce((s,e)=>s+Number(e.amount||0),0);
   const totalCY      = subTotal+certTotal+docsTotal+carTotal+leisureTotal+manualTotal;
@@ -414,7 +414,7 @@ function Expenses({data,setData,enabledPages}){
     const legs=(r.legs||[]).slice().sort((a,b)=>((a.flightType==="Multi-City"?a.segments?.[0]?.departDate:a.departDate)||"").localeCompare((b.flightType==="Multi-City"?b.segments?.[0]?.departDate:b.departDate)||""));
     const fd=legs.length>0?(legs[0].flightType==="Multi-City"?legs[0].segments?.[0]?.departDate:legs[0].departDate):null;
     if(fd&&logYear(fd)!==CY) return s;
-    return s+(r.legs||[]).reduce((sf,l)=>sf+Number(l.flightCost||0),0)+(r.accommodations||[]).reduce((sa,a)=>sa+Number(a.cost||0),0);
+    return s+(r.legs||[]).filter(l=>l.selected!==false).reduce((sf,l)=>sf+Number(l.flightCost||0),0)+(r.accommodations||[]).filter(a=>a.selected!==false).reduce((sa,a)=>sa+Number(a.cost||0),0);
   },0) : 0;
   const AUTO_EXPENSES = [
     ep.subscriptions!==false && {id:"auto-subs",    name:"Subscriptions",     category:"Variable", amount:subTotal,         live:true},
