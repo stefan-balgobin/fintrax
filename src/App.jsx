@@ -143,12 +143,12 @@ function ConfirmDelete({label,onCancel,onConfirm}){
 function Field({label,children}){
   const T = useT(); const S = useS();return <div style={{marginBottom:14}}><label style={S.label}>{label}</label>{children}</div>;}
 function G2({children}){return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))",gap:10}}>{children}</div>;}
-function SaveCancel({onCancel,onSave}){
+function SaveCancel({onCancel,onSave,saveLabel}){
   const T = useT(); const S = useS();
   return(
     <div style={{display:"flex",gap:10,marginTop:16}}>
       <button style={{...S.btn(T.muted),flex:1}} onClick={onCancel}>Cancel</button>
-      <button style={{...S.btn(T.green),flex:1}} onClick={onSave}>Save</button>
+      <button style={{...S.btn(T.green),flex:1}} onClick={onSave}>{saveLabel||"Save"}</button>
     </div>
   );
 }
@@ -1126,7 +1126,7 @@ function FlightModal({initial,onSave,onClose}){
 }
 
 // ── TRIP DETAIL ───────────────────────────────────────────────────────────────
-function TripDetail({trip,onBack,onSave}){
+function TripDetail({trip,onBack,onSave,sharing}){
   const T = useT(); const S = useS();
   const [form,setForm] = useState({...trip,legs:trip.legs||[],accommodations:trip.accommodations||[],files:trip.files||[]});
   const [fModal,setFModal] = useState(null);
@@ -1240,6 +1240,37 @@ function TripDetail({trip,onBack,onSave}){
               </div>
             ))}
           </div>
+        )}
+      </div>
+      <div style={S.card}>
+        <div style={{fontSize:12,letterSpacing:2,color:T.purple,textTransform:"uppercase",fontWeight:700,marginBottom:12}}>⊕ Share Trip</div>
+        {sharing?.isOwner?(
+          <>
+            {!sharing.accessCode?(
+              <button style={{...S.btn(T.purple),width:"100%"}} onClick={sharing.onGenerate} disabled={sharing.codeLoading}>
+                {sharing.codeLoading?"Generating...":"Generate Share Code"}
+              </button>
+            ):(
+              <>
+                <div style={{fontSize:11,color:T.muted,marginBottom:8}}>Share this code — any Fintrax user can join this trip:</div>
+                <div style={{display:"flex",gap:8,marginBottom:10}}>
+                  <div style={{...S.input,background:T.bg,flex:1,letterSpacing:3,fontWeight:700,color:T.purple,textAlign:"center",cursor:"default",fontSize:15}}>{sharing.accessCode}</div>
+                  <button style={{...S.btn(T.purple),padding:"10px 14px",flexShrink:0}} onClick={()=>{try{navigator.clipboard.writeText(sharing.accessCode);}catch{}}}>Copy</button>
+                </div>
+                {sharing.onRegenerate&&<button style={{...S.btn(T.muted),fontSize:11,padding:"6px 12px",marginBottom:12}} onClick={sharing.onRegenerate}>↺ New Code</button>}
+                <div style={S.label}>Collaborators ({(sharing.collaborators||[]).length})</div>
+                {(sharing.collaborators||[]).length===0&&<div style={{fontSize:12,color:T.muted}}>No one has joined yet.</div>}
+                {(sharing.collaborators||[]).map(c=>(
+                  <div key={c.user_id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:T.bg,borderRadius:8,padding:"8px 10px",marginBottom:6}}>
+                    <span style={{fontSize:12,color:T.text}}>@{c.username}</span>
+                    {sharing.onRemoveCollaborator&&<button style={{...S.btn(T.red),padding:"3px 8px",fontSize:11}} onClick={()=>sharing.onRemoveCollaborator(c.user_id)}>Remove</button>}
+                  </div>
+                ))}
+              </>
+            )}
+          </>
+        ):(
+          <div style={{fontSize:12,color:T.muted,lineHeight:1.6}}>This trip is owned by <span style={{color:T.purple,fontWeight:700}}>@{sharing?.ownerUsername}</span>. Your edits are synced to all collaborators.</div>
         )}
       </div>
       {fModal&&<FlightModal initial={fModal==="add"?null:fModal} onSave={saveLeg} onClose={()=>setFModal(null)}/>}
@@ -1423,30 +1454,152 @@ function exportItinerary(trip){
 }
 
 // ── LEISURE MAIN ──────────────────────────────────────────────────────────────
-function Leisure({data,setData}){
+function Leisure({data,setData,user,sb}){
   const T = useT(); const S = useS();
   const [modal,setModal] = useState(null);
   const [form,setForm] = useState({});
   const [search,setSearch] = useState("");
   const [collapsed,setCollapsed] = useLocalState("leisure_collapsed",false);
-  const [activeTrip,setActiveTrip] = useState(null);
+  const [activeTrip,setActiveTrip] = useState(null); // {id,source:"local"} | {sharedTripId,source:"collab"} | null
+  const [sharedTrips,setSharedTrips] = useState([]);  // rows from shared_trips table
+  const [collabMap,setCollabMap] = useState({});       // {sharedTripId:[{user_id,username}]}
+  const [joinModal,setJoinModal] = useState(false);
+  const [joinCode,setJoinCode] = useState("");
+  const [joinErr,setJoinErr] = useState("");
+  const [joinLoading,setJoinLoading] = useState(false);
+  const [codeLoading,setCodeLoading] = useState(false);
   const upd = (k,v)=>setForm(f=>({...f,[k]:v}));
   const statColors = {Booked:T.accent,Planning:T.muted};
+  const uname = user?.user_metadata?.username||user?.email?.split("@")?.[0]||"User";
   const getFirst = leg=>{if(!leg)return null;if(leg.flightType==="Multi-City")return leg.segments?.[0]?.departDate||null;return leg.departDate||null;};
   const getLast = leg=>{if(!leg)return null;if(leg.flightType==="Multi-City"){const s=leg.segments||[];return s[s.length-1]?.arriveDate||s[s.length-1]?.departDate||null;}if(leg.flightType==="Round Trip")return leg.returnArriveDate||leg.returnDate||null;return leg.arriveDate||leg.departDate||null;};
   const tripDates = r=>{const sl=[...(r.legs||[]).filter(l=>l.selected!==false)].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""));return{start:sl.length>0?getFirst(sl[0]):null,end:sl.length>0?getLast(sl[sl.length-1]):null};};
   const tripCost = r=>(r.legs||[]).filter(l=>l.selected!==false).reduce((s,l)=>s+Number(l.flightCost||0),0)+(r.accommodations||[]).filter(a=>a.selected!==false).reduce((s,a)=>s+Number(a.cost||0),0);
-  const cyTrips = data.leisure.filter(r=>{const fd=getFirst([...(r.legs||[])].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""))[0]);return !fd||logYear(fd)===CY;});
-  const total = cyTrips.reduce((s,r)=>s+tripCost(r),0);
-  const shown = data.leisure.filter(r=>!search||r.trip.toLowerCase().includes(search.toLowerCase())||(r.status||"").toLowerCase().includes(search.toLowerCase()));
+
+  async function loadSharedTrips(){
+    if(!sb||!user) return;
+    const {data:rows}=await sb.from("shared_trips").select("*, trip_collaborators(user_id,username)").order("updated_at",{ascending:false});
+    if(!rows) return;
+    setSharedTrips(rows);
+    const cm={};
+    rows.forEach(t=>{cm[t.id]=t.trip_collaborators||[];});
+    setCollabMap(cm);
+  }
+  React.useEffect(()=>{loadSharedTrips();},[]);
+
+  async function generateCode(trip){
+    if(!sb||!user) return;
+    setCodeLoading(true);
+    const code="FTX-"+Math.random().toString(36).slice(2,8).toUpperCase();
+    const {data:created,error}=await sb.from("shared_trips").insert({
+      owner_id:user.id,owner_username:uname,access_code:code,
+      trip_name:trip.trip,trip_data:trip,
+      updated_at:new Date().toISOString(),updated_by_username:uname,
+    }).select().single();
+    if(!error&&created){
+      const updated={...trip,shared_trip_id:created.id,access_code:code};
+      setData(d=>({...d,leisure:d.leisure.map(r=>r.id===trip.id?updated:r)}));
+    }
+    setCodeLoading(false);
+    loadSharedTrips();
+  }
+
+  async function regenerateCode(trip){
+    if(!sb||!user||!trip.shared_trip_id) return;
+    const code="FTX-"+Math.random().toString(36).slice(2,8).toUpperCase();
+    await sb.from("shared_trips").update({access_code:code,updated_at:new Date().toISOString()}).eq("id",trip.shared_trip_id);
+    const updated={...trip,access_code:code};
+    setData(d=>({...d,leisure:d.leisure.map(r=>r.id===trip.id?updated:r)}));
+    loadSharedTrips();
+  }
+
+  async function syncSharedTrip(trip,sharedTripId){
+    if(!sb||!user) return;
+    await sb.from("shared_trips").update({
+      trip_data:trip,trip_name:trip.trip,
+      updated_at:new Date().toISOString(),updated_by_username:uname,
+    }).eq("id",sharedTripId);
+    loadSharedTrips();
+  }
+
+  async function removeCollaborator(sharedTripId,collabUserId){
+    if(!sb||!user) return;
+    await sb.from("trip_collaborators").delete().eq("trip_id",sharedTripId).eq("user_id",collabUserId);
+    loadSharedTrips();
+  }
+
+  async function deleteLocalTrip(r){
+    if(r.shared_trip_id&&sb&&user) await sb.from("shared_trips").delete().eq("id",r.shared_trip_id);
+    setData(d=>({...d,leisure:d.leisure.filter(x=>x.id!==r.id)}));
+  }
+
+  async function leaveCollabTrip(sharedTripId){
+    if(!sb||!user) return;
+    await sb.from("trip_collaborators").delete().eq("trip_id",sharedTripId).eq("user_id",user.id);
+    setSharedTrips(prev=>prev.filter(st=>st.id!==sharedTripId));
+  }
+
+  async function joinTrip(){
+    if(!joinCode.trim()) return;
+    setJoinLoading(true); setJoinErr("");
+    const code=joinCode.trim().toUpperCase();
+    const {data:found}=await sb.from("shared_trips").select("*").eq("access_code",code).maybeSingle();
+    if(!found){setJoinErr("Invalid code. No trip found.");setJoinLoading(false);return;}
+    if(found.owner_id===user.id){setJoinErr("You already own this trip.");setJoinLoading(false);return;}
+    const {data:existing}=await sb.from("trip_collaborators").select("user_id").eq("trip_id",found.id).eq("user_id",user.id).maybeSingle();
+    if(existing){setJoinErr("You already have access to this trip.");setJoinLoading(false);return;}
+    const {error}=await sb.from("trip_collaborators").insert({trip_id:found.id,user_id:user.id,username:uname,joined_at:new Date().toISOString()});
+    if(error){setJoinErr("Failed to join. Please try again.");setJoinLoading(false);return;}
+    await loadSharedTrips();
+    setJoinModal(false);setJoinCode("");setJoinLoading(false);
+  }
+
   function save(){const entry={...form,legs:form.legs||[],accommodations:form.accommodations||[],files:form.files||[]};setData(d=>({...d,leisure:modal==="add"?[...d.leisure,{...entry,id:nextId(d.leisure)}]:d.leisure.map(r=>r.id===form.id?entry:r)}));setModal(null);}
-  function saveTrip(u){setData(d=>({...d,leisure:d.leisure.map(r=>r.id===u.id?u:r)}));}
-  if(activeTrip!==null){const trip=data.leisure.find(r=>r.id===activeTrip);if(trip)return <TripDetail trip={trip} onBack={()=>setActiveTrip(null)} onSave={saveTrip}/>;}
+  function saveTrip(u){
+    setData(d=>({...d,leisure:d.leisure.map(r=>r.id===u.id?u:r)}));
+    if(u.shared_trip_id) syncSharedTrip(u,u.shared_trip_id);
+  }
+  function saveCollabTrip(u,sharedTripId){
+    syncSharedTrip(u,sharedTripId);
+    setSharedTrips(prev=>prev.map(st=>st.id===sharedTripId?{...st,trip_data:u,trip_name:u.trip}:st));
+  }
+
+  if(activeTrip!==null){
+    if(activeTrip.source==="local"){
+      const trip=data.leisure.find(r=>r.id===activeTrip.id);
+      if(trip){
+        const sharingProps={
+          isOwner:true,
+          accessCode:trip.access_code||null,
+          collaborators:trip.shared_trip_id?(collabMap[trip.shared_trip_id]||[]):[],
+          onGenerate:()=>generateCode(trip),
+          onRegenerate:trip.shared_trip_id?()=>regenerateCode(trip):null,
+          onRemoveCollaborator:trip.shared_trip_id?(uid)=>removeCollaborator(trip.shared_trip_id,uid):null,
+          codeLoading,
+        };
+        return <TripDetail trip={trip} onBack={()=>setActiveTrip(null)} onSave={saveTrip} sharing={sharingProps}/>;
+      }
+    } else if(activeTrip.source==="collab"){
+      const st=sharedTrips.find(s=>s.id===activeTrip.sharedTripId);
+      if(st) return <TripDetail trip={st.trip_data} onBack={()=>setActiveTrip(null)} onSave={(u)=>saveCollabTrip(u,st.id)} sharing={{isOwner:false,ownerUsername:st.owner_username,accessCode:st.access_code,collaborators:[]}}/>;
+    }
+  }
+
+  const collabSTs=sharedTrips.filter(st=>st.owner_id!==user?.id);
+  const allLeisure=[...data.leisure,...collabSTs.map(st=>st.trip_data).filter(Boolean)];
+  const cyTrips=allLeisure.filter(r=>{const fd=getFirst([...(r.legs||[])].sort((a,b)=>(getFirst(a)||"").localeCompare(getFirst(b)||""))[0]);return !fd||logYear(fd)===CY;});
+  const total=cyTrips.reduce((s,r)=>s+tripCost(r),0);
+  const shown=data.leisure.filter(r=>!search||r.trip.toLowerCase().includes(search.toLowerCase())||(r.status||"").toLowerCase().includes(search.toLowerCase()));
+  const shownCollab=collabSTs.filter(st=>!search||(st.trip_name||"").toLowerCase().includes(search.toLowerCase()));
+
   return(
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
         <div style={{fontSize:18,fontWeight:700,letterSpacing:2}}>LEISURE & TRAVEL</div>
-        <button style={{...S.btn(T.green),padding:"8px 14px"}} onClick={()=>{setForm({trip:"",status:"Planning",legs:[],accommodations:[],files:[]});setModal("add");}}>+ Add</button>
+        <div style={{display:"flex",gap:8}}>
+          <button style={{...S.btn(T.purple),padding:"8px 14px"}} onClick={()=>{setJoinCode("");setJoinErr("");setJoinModal(true);}}>+ Join</button>
+          <button style={{...S.btn(T.green),padding:"8px 14px"}} onClick={()=>{setForm({trip:"",status:"Planning",legs:[],accommodations:[],files:[]});setModal("add");}}>+ Add</button>
+        </div>
       </div>
       <div style={{color:T.muted,fontSize:11,letterSpacing:1,marginBottom:14}}>// TRIPS & ACTIVITIES · Tap card for details</div>
       <SearchBar value={search} onChange={setSearch} placeholder="Search trips..."/>
@@ -1454,14 +1607,15 @@ function Leisure({data,setData}){
         <StatCard label={`${CY} Trips`} value={cyTrips.length} color={T.accent}/>
         <StatCard label={`${CY} Trip Cost`} value={fmt(total)} color={T.green}/>
       </div>
-      <ListToggle collapsed={collapsed} onToggle={()=>setCollapsed(c=>!c)} count={shown.length} label="Trips"/>
+      <ListToggle collapsed={collapsed} onToggle={()=>setCollapsed(c=>!c)} count={shown.length+shownCollab.length} label="Trips"/>
       {!collapsed&&(
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           {shown.map(r=>{
             const {start,end}=tripDates(r);
             const tc=tripCost(r);
+            const isShared=!!r.shared_trip_id;
             return(
-              <div key={r.id} onClick={()=>setActiveTrip(r.id)} style={{...S.card,cursor:"pointer",position:"relative",overflow:"hidden",borderColor:T.green+"40"}} onMouseEnter={e=>e.currentTarget.style.boxShadow=`0 0 16px ${T.green}20`} onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
+              <div key={`local-${r.id}`} onClick={()=>setActiveTrip({id:r.id,source:"local"})} style={{...S.card,cursor:"pointer",position:"relative",overflow:"hidden",borderColor:T.green+"40"}} onMouseEnter={e=>e.currentTarget.style.boxShadow=`0 0 16px ${T.green}20`} onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
                 <div style={{position:"absolute",top:-8,right:-8,fontSize:60,opacity:0.05,pointerEvents:"none"}}>✈</div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                   <div style={{fontWeight:700,fontSize:16,color:T.text,flex:1,paddingRight:8}}>{r.trip}</div>
@@ -1475,7 +1629,10 @@ function Leisure({data,setData}){
                     <div style={{fontSize:10,color:T.muted,letterSpacing:1,marginBottom:2}}>TOTAL TRIP COST</div>
                     <div style={{fontSize:18,fontWeight:700,color:T.green}}>{tc>0?fmt(tc):"TBD"}</div>
                   </div>
-                  <span style={S.badge(statColors[r.status]||T.muted)}>{r.status}</span>
+                  <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
+                    {isShared&&<span style={S.badge(T.purple)}>👥 Shared</span>}
+                    <span style={S.badge(statColors[r.status]||T.muted)}>{r.status}</span>
+                  </div>
                 </div>
                 <div style={{display:"flex",gap:10,fontSize:11,color:T.muted,marginBottom:4}}>
                   {r.legs?.length>0&&(()=>{const sl=(r.legs||[]).filter(l=>l.selected!==false);const fc=sl.reduce((s,l)=>s+(l.flightType==="Round Trip"?2:l.flightType==="Multi-City"?(l.segments||[]).length:1),0);return fc>0?<span>✈ {fc} flight{fc!==1?"s":""}</span>:null;})()}
@@ -1483,7 +1640,39 @@ function Leisure({data,setData}){
                 </div>
                 <div style={{fontSize:9,color:T.border,letterSpacing:1}}>TAP FOR DETAILS →</div>
                 <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}} onClick={e=>e.stopPropagation()}>
-                  <ItemActions label={r.trip} onEdit={()=>{setForm({...r});setModal("edit");}} onDelete={()=>setData(d=>({...d,leisure:d.leisure.filter(x=>x.id!==r.id)}))}/>
+                  <ItemActions label={r.trip} onEdit={()=>{setForm({...r});setModal("edit");}} onDelete={()=>deleteLocalTrip(r)}/>
+                </div>
+              </div>
+            );
+          })}
+          {shownCollab.map(st=>{
+            const r=st.trip_data||{};
+            const {start,end}=tripDates(r);
+            const tc=tripCost(r);
+            return(
+              <div key={`collab-${st.id}`} onClick={()=>setActiveTrip({sharedTripId:st.id,source:"collab"})} style={{...S.card,cursor:"pointer",position:"relative",overflow:"hidden",borderColor:T.purple+"40"}} onMouseEnter={e=>e.currentTarget.style.boxShadow=`0 0 16px ${T.purple}20`} onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
+                <div style={{position:"absolute",top:-8,right:-8,fontSize:60,opacity:0.05,pointerEvents:"none"}}>✈</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                  <div style={{fontWeight:700,fontSize:16,color:T.text,flex:1,paddingRight:8}}>{st.trip_name}</div>
+                  <div onClick={e=>e.stopPropagation()} style={{flexShrink:0}}>
+                    <button onClick={()=>exportItinerary(r)} style={{...S.btn(T.accent),padding:"3px 10px",fontSize:10,whiteSpace:"nowrap"}}>↓ PDF</button>
+                  </div>
+                </div>
+                {(start||end)&&<div style={{fontSize:12,color:T.muted,marginBottom:8}}>{fmtDate(start)}{end?` → ${fmtDate(end)}`:""}</div>}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:8}}>
+                  <div>
+                    <div style={{fontSize:10,color:T.muted,letterSpacing:1,marginBottom:2}}>TOTAL TRIP COST</div>
+                    <div style={{fontSize:18,fontWeight:700,color:T.green}}>{tc>0?fmt(tc):"TBD"}</div>
+                  </div>
+                  <span style={S.badge(T.purple)}>👥 @{st.owner_username}</span>
+                </div>
+                <div style={{display:"flex",gap:10,fontSize:11,color:T.muted,marginBottom:4}}>
+                  {r.legs?.length>0&&(()=>{const sl=(r.legs||[]).filter(l=>l.selected!==false);const fc=sl.reduce((s,l)=>s+(l.flightType==="Round Trip"?2:l.flightType==="Multi-City"?(l.segments||[]).length:1),0);return fc>0?<span>✈ {fc} flight{fc!==1?"s":""}</span>:null;})()}
+                  {r.accommodations?.length>0&&(()=>{const sa=(r.accommodations||[]).filter(a=>a.selected!==false);return sa.length>0?<span>🏨 {sa.length} stay{sa.length!==1?"s":""}</span>:null;})()}
+                </div>
+                <div style={{fontSize:9,color:T.border,letterSpacing:1}}>TAP FOR DETAILS →</div>
+                <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}} onClick={e=>e.stopPropagation()}>
+                  <button onClick={e=>{e.stopPropagation();leaveCollabTrip(st.id);}} style={{...S.btn(T.red),padding:"4px 10px",fontSize:11}}>Leave</button>
                 </div>
               </div>
             );
@@ -1495,6 +1684,16 @@ function Leisure({data,setData}){
           <Field label="Trip Name"><input style={S.input} value={form.trip||""} onChange={e=>upd("trip",e.target.value)} placeholder="e.g. World Cup 2026"/></Field>
           <Field label="Status"><select style={S.input} value={form.status||"Planning"} onChange={e=>upd("status",e.target.value)}><option>Planning</option><option>Booked</option></select></Field>
           <SaveCancel onCancel={()=>setModal(null)} onSave={save}/>
+        </Modal>
+      )}
+      {joinModal&&(
+        <Modal title="Join a Trip" onClose={()=>setJoinModal(false)}>
+          <div style={{fontSize:12,color:T.muted,marginBottom:14,lineHeight:1.6}}>Enter the share code provided by the trip owner to access their trip.</div>
+          <Field label="Share Code">
+            <input style={{...S.input,letterSpacing:2,textTransform:"uppercase"}} value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} placeholder="FTX-XXXXXX" maxLength={10}/>
+          </Field>
+          {joinErr&&<div style={{color:T.red,fontSize:12,marginBottom:10}}>{joinErr}</div>}
+          <SaveCancel onCancel={()=>setJoinModal(false)} onSave={joinTrip} saveLabel={joinLoading?"Joining...":"Join Trip"}/>
         </Modal>
       )}
     </div>
@@ -2154,7 +2353,7 @@ export default function App(){
 
       {/* ── PAGE CONTENT ── */}
       <div style={{maxWidth:700,margin:"0 auto",padding:"20px 14px 90px"}}>
-        <Page data={data} setData={setDataAndSave} enabledPages={enabledPages}/>
+        <Page data={data} setData={setDataAndSave} enabledPages={enabledPages} user={user} sb={supabase}/>
       </div>
 
       {/* ── EXPANDED BOTTOM NAV (More tray) ── */}
