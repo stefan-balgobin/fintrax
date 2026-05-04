@@ -99,16 +99,24 @@ function StatCard({label,value,sub,color,onClick,active}){
 function Modal({title,onClose,children}){
   const T = useT(); const S = useS();
   React.useEffect(()=>{
-    const html=document.documentElement;
-    const prevHtml=html.style.overflow;
-    const prevBody=document.body.style.overflow;
-    html.style.overflow="hidden";
-    document.body.style.overflow="hidden";
-    return()=>{ html.style.overflow=prevHtml; document.body.style.overflow=prevBody; };
+    const scrollY=window.scrollY;
+    const body=document.body;
+    const prev={position:body.style.position,top:body.style.top,width:body.style.width,overflowY:body.style.overflowY};
+    body.style.position="fixed";
+    body.style.top=`-${scrollY}px`;
+    body.style.width="100%";
+    body.style.overflowY="scroll";
+    return()=>{
+      body.style.position=prev.position;
+      body.style.top=prev.top;
+      body.style.width=prev.width;
+      body.style.overflowY=prev.overflowY;
+      window.scrollTo(0,scrollY);
+    };
   },[]);
   return(
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0}} onTouchMove={e=>e.preventDefault()}>
-      <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:600,maxHeight:"92vh",overflowY:"auto"}} onTouchMove={e=>e.stopPropagation()}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0}}>
+      <div className="modal-scroll" style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:600,maxHeight:"92vh",overflowY:"auto"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
           <div style={{fontWeight:700,fontSize:15,color:T.accent,letterSpacing:1}}>{title}</div>
           <button onClick={onClose} style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:22,lineHeight:1,padding:"0 4px"}}>✕</button>
@@ -1679,7 +1687,6 @@ function AuthScreen({onAuth}){
   const inp = {width:"100%",background:T.card,border:`1px solid ${T.border}`,borderRadius:8,color:T.text,padding:"12px 14px",fontSize:14,fontFamily:"inherit",boxSizing:"border-box"};
   return(
     <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"24px 20px",boxSizing:"border-box",overflowX:"hidden"}}>
-      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
       <style>{`*{box-sizing:border-box;}input:focus{border-color:${T.accent}!important;outline:none;}button:active{opacity:0.7;}`}</style>
       <div style={{width:"100%",maxWidth:380}}>
         <div style={{textAlign:"center",marginBottom:32}}>
@@ -1999,10 +2006,9 @@ export default function App(){
   return(
     <ThemeCtx.Provider value={currentT}>
     <div style={{minHeight:"100vh",background:currentT.bg,color:currentT.text,fontFamily:"'IBM Plex Mono','Courier New',monospace",fontSize:14,overflowX:"hidden",width:"100%"}}>
-      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
       <style>{`
         *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;max-width:100%;}
-        html,body{overflow-x:hidden;width:100%;margin:0;padding:0;}
+        html,body{overflow-x:hidden;width:100%;margin:0;padding:0;-webkit-text-size-adjust:100%;text-size-adjust:100%;}
         input,select,button{font-family:'IBM Plex Mono','Courier New',monospace;max-width:100%;}
         input:focus,select:focus{border-color:${currentT.accent}!important;outline:none;box-shadow:0 0 0 2px ${currentT.accent}20;}
         button:active{opacity:0.7;}
@@ -2010,6 +2016,7 @@ export default function App(){
         ::-webkit-scrollbar-thumb{background:${currentT.border};border-radius:4px;}
         input[type="date"],input[type="time"]{color-scheme:${darkMode?"dark":"light"};}
         img{max-width:100%;height:auto;}
+        .modal-scroll{-webkit-overflow-scrolling:touch;}
       `}</style>
 
       {/* ── TOP BAR ── */}
